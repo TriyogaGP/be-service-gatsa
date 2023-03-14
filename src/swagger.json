@@ -1,0 +1,584 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "version": "1-oas3", 
+    "title": "Kmart Backend Service Internal"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3534/api/v1"
+    },
+    {
+      "url": "http://103.186.0.54:3534/api/v1"
+    }
+  ],
+	"security": [
+		{
+			"bearerAuth": []
+		}
+	],
+  "tags": [
+    {
+      "name": "CMS Settings",
+      "description": "API untuk data Settings"
+    },
+		{
+      "name": "CMS Auth",
+      "description": "API untuk Login, Ubah Kata Sandi, Profile, Address, Dashboard"
+    },
+    {
+      "name": "CMS Admin",
+      "description": "API untuk Data Admin dan Peserta"
+    },
+		{
+      "name": "CMS K-Mart",
+      "description": "API untuk kebutuhan internal K-Mart DNM"
+    }
+  ],
+  "consumes": ["application/json"],
+  "produces": ["application/json"],
+	"components": {
+		"schemas": {},
+		"securitySchemes": {
+			"bearerAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"bearerFormat": "JWT"
+			}
+		}
+	},
+	"paths": {
+		"/auth/loginAdmin": {
+			"post": {
+				"tags": ["CMS Auth"],
+				"summary": "Login Admin (CMS)",
+				"parameters": [],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"username": {
+										"type": "string"
+									},
+									"password": {
+										"type": "string"
+									}
+								},
+								"required": ["username", "password"]
+							},
+							"examples": {
+								"Login dengan Username": {
+									"value": {
+										"username": "YD070420",	
+										"password": "YD070420"
+									}
+								},
+								"Login dengan Email": {
+									"value": {
+										"username": "triyoga.ginanjar.p@gmail.com",	
+										"password": "YD070420"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/auth/forgotPass": {
+			"post": {
+				"tags": ["CMS Auth"],
+				"summary": "Lupa Kata Sandi (CMS)",
+				"parameters": [],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"email": {
+										"type": "string",
+										"example": "triyogagp.kmart@gmail.com"	
+									}
+								},
+								"required": ["email"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/auth/ubahKataSandi": {
+			"post": {
+				"tags": ["CMS Auth"],
+				"summary": "Ubah Kata Sandi (CMS)",
+				"parameters": [],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"id_login": {
+										"type": "string",
+										"example": "1"
+									},
+									"passwordLama": {
+										"type": "string",
+										"example": "YD070420"
+									},
+									"passwordBaru": {
+										"type": "string",
+										"example": "12345"
+									},
+									"passwordConfBaru": {
+										"type": "string",
+										"example": "12345"
+									},
+									"create_update_by": {
+										"type": "string",
+										"example": "1"
+									}
+								},
+								"required": ["id_login", "passwordLama", "passwordBaru", "passwordConfBaru", "create_update_by"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/auth/getProfile": {
+			"get": {
+				"tags": ["CMS Auth"],
+				"summary": "Untuk Data Profile (CMS)",
+				"parameters": [
+					{
+						"name": "id_login",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": ""
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+
+		"/admin/getAdmin": {
+			"get": {
+				"tags": ["CMS Admin"],
+				"summary": "Untuk Data Admin (CMS)",
+				"parameters": [
+					{
+						"name": "status_aktif",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "enum",
+							"enum": [true, false],
+							"example": ""
+						}
+					},
+					{
+						"name": "sort",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "enum",
+							"enum": ["ASC", "DESC"],
+							"example": ""
+						}
+					},
+					{
+						"name": "id_admin",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": ""
+						}
+					},
+					{
+						"name": "level",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": ""
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/admin/postAdmin": {
+			"post": {
+				"tags": ["CMS Admin"],
+				"summary": "Proses ADD, EDIT, DELETE, STATUSRECORD ADMIN (CMS)",
+				"parameters": [],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"jenis": {
+										"type": "string"
+									},
+									"id_admin": {
+										"type": "string"
+									},
+									"level": {
+										"type": "string"
+									},
+									"downline_tenant": {
+										"type": "string"
+									},
+									"nama": {
+										"type": "string"
+									},
+									"email": {
+										"type": "string"
+									},
+									"username": {
+										"type": "string"
+									},
+									"password": {
+										"type": "string"
+									},
+									"kota": {
+										"type": "string"
+									},
+									"no_hp": {
+										"type": "string"
+									},
+									"alamat": {
+										"type": "string"
+									},
+									"status_aktif": {
+										"type": "string"
+									},
+									"create_update_by": {
+										"type": "string"
+									}
+								}
+							},
+							"examples": {
+								"ADD": {
+									"value": {
+										"jenis": "ADD",	
+										"id_admin": null,	
+										"level": "1",	
+										"downline_tenant": "2",	
+										"nama": "Coba Tester",	
+										"email": "coba.tester@gmail.com",	
+										"username": "cobatester",	
+										"password": "cobatester",
+										"kota": "Bandung",
+										"no_hp": "0987654321",
+										"alamat": "Ciparay",
+										"create_update_by": "1"
+									}
+								},
+								"EDIT": {
+									"value": {
+										"jenis": "EDIT",	
+										"id_admin": "11",	
+										"level": "1",	
+										"downline_tenant": "2",	
+										"nama": "Coba Tester",	
+										"email": "coba.tester@gmail.com",	
+										"username": "cobatester",	
+										"password": "cobatester",
+										"kota": "Bandung",
+										"no_hp": "0987654321",
+										"alamat": "Ciparay",
+										"create_update_by": "1"
+									}
+								},
+								"DELETE": {
+									"value": {
+										"jenis": "DELETE",	
+										"id_admin": "11",	
+										"delete_by": "1"	
+									}
+								},
+								"STATUSRECORD": {
+									"value": {
+										"jenis": "STATUSRECORD",	
+										"id_admin": "11",	
+										"status_aktif": "1"	
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+
+		"/settings/encryptPass": {
+			"get": {
+				"tags": ["CMS Settings"],
+				"summary": "Untuk encrypt kata sandi",
+				"parameters": [
+					{
+						"name": "kata",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": ""
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/settings/decryptPass": {
+			"get": {
+				"tags": ["CMS Settings"],
+				"summary": "Untuk decrypt kata sandi",
+				"parameters": [
+					{
+						"name": "kata",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": ""
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/settings/getRole": {
+			"get": {
+				"tags": ["CMS Settings"],
+				"summary": "Untuk List Data Hak Akses (CMS)",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+
+		"/kmart/getdataHarian": {
+			"get": {
+				"tags": ["CMS K-Mart"],
+				"summary": "Untuk List Data Order K-Mart (CMS)",
+				"parameters": [
+					{
+						"name": "startdate",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": "2022-11-10"
+						}
+					},
+					{
+						"name": "enddate",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": "2022-11-11"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/kmart/getdataNonCod": {
+			"get": {
+				"tags": ["CMS K-Mart"],
+				"summary": "Untuk List Data Order K-Mart NON COD Stack (CMS)",
+				"parameters": [
+					{
+						"name": "inv",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": "INV-220718-SYNS6YG,INV-220725-QGXM6JD"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/kmart/hitManualKMart": {
+			"post": {
+				"tags": ["CMS K-Mart"],
+				"summary": "Hit Manual  (CMS)",
+				"parameters": [],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"orderNumber": {
+										"type": "string",
+										"example": "INV-220718-SYNS6YG"	
+									}
+								},
+								"required": ["orderNumber"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		},
+		"/kmart/hitUpdateStatus": {
+			"get": {
+				"tags": ["CMS K-Mart"],
+				"summary": "Untuk Update Status Order (CMS)",
+				"parameters": [
+					{
+						"name": "idOrder",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": "2H7ZBkqQHD2JKLoX2JsB0szKBiY"
+						}
+					},
+					{
+						"name": "status",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "enum",
+							"enum": ["WAITING_FOR_PAYMENT", "WAITING_FOR_COD_CONFIRMATION", "WAITING_FOR_SELLER_CONFIRMATION", "PROCESSING", "IN_SHIPPING", "ARRIVED_AT_DESTINATION", "ARRIVED_AT_DESTINATION_PICKUP", "DONE", "CANCELED", "PAYMENT_ERROR", "ORDER_RETURN"],
+							"example": ""
+						}
+					},
+					{
+						"name": "remarks",
+						"in": "query",
+						"style": "simple",
+						"explode": false,
+						"schema": {
+							"type": "string",
+							"example": ""
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Berhasil"
+					},
+					"404": {
+						"description": "Gagal atau Unauthorized"
+					}
+				}
+			}
+		}
+	}
+}

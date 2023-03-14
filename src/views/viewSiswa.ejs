@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Tes</title>
+	<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
+</head>
+<body>
+	<style>
+		.judul{
+			font-weight: bold; 
+			font-size: 18px; 
+			text-align: left;
+			text-decoration: underline;
+			padding-bottom: 10px;
+		}
+		.isi{ 
+			font-size: 12px; 
+			text-align: left;
+		}
+		.container{
+			width: 100%;
+			height: 100%;
+		}
+		.validate {
+			background-image: url('http://localhost:5100/bahan/validate.png');
+			background-repeat: repeat;
+			background-attachment: fixed;
+			/* opacity: 0.4; */
+			/* z-index: 100; */
+			background-size: 100%;
+		}
+		.notvalidate {
+			background-image: url('http://localhost:5100/bahan/notvalidate.png');
+			background-repeat: repeat;
+			background-attachment: fixed;
+			/* opacity: 0.4;
+			z-index: 100; */
+			background-size: 100%;
+		}
+		hr{
+			border: 2px double #000;
+		}
+		.namasekolah{
+			text-align: center; 
+			font-weight: bold; 
+			font-size: 18px; 
+			vertical-align: top;
+			height: 10px;
+		}
+		.alamat{
+			text-align: center; 
+			font-size: 12px; 
+			vertical-align: top;
+			height: 10px;
+		}
+	</style>
+	<div class="container">
+		<% if(dataSiswa.validasiAkun === false) { %> 
+		<div class="notvalidate">
+		<% }else{ %>
+		<div class="validate">
+		<% } %>
+			<table border="0" width="100%" cellspacing="0" cellpadding="0">
+				<tr>
+					<td width="25%" style="text-align: center;">
+						<img
+							src="http://localhost:5100/bahan/gatsa.png"
+							alt="Gatsa logo"
+							width="80px"
+							height="80px"
+							style="display: block;"
+						/>
+					</td>
+					<td>
+						<p class="namasekolah">MTsS SIROJUL ATHFAL</p>
+						<p class="alamat">Jl. Raya pemda Karadenan RT. 004/003 Kec. Cibinong Kab. Bogor Phone (0251) 8-654-235</p>
+					</td>
+				</tr>
+				<tr>
+					<td colspan="2"><hr></td>
+				</tr>
+			</table>
+			<table width="100%" border="0" cellspacing="0" cellpadding="0"> 
+				<tr>
+					<td colspan="3" class="judul">DATA PRIBADI</td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">NISN</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.nomorInduk %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nomor Induk Kewarganegaraan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.nikSiswa ? dataSiswa.nikSiswa : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nama lengkap</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.nama %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Email</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.email %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Tempat, Tanggal Lahir</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.tempat+', '+dataSiswa.tanggalLahir %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Jenis Kelamin</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.jenisKelamin %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Anak Ke</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.anakKe %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Jumlah Saudara</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.jumlahSaudara %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Agama</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.agama %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Hobi</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.hobi %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Cita -Cita</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.citaCita %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Telepon</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.telp %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%" style="vertical-align: top;">Alamat</td>
+					<td width="2%" style="vertical-align: top;">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.alamat+', '+dataSiswa.kelurahan+', '+dataSiswa.kecamatan+', '+dataSiswa.kabKota+', '+dataSiswa.provinsi+', '+dataSiswa.kodePos %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Kelas</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.kelas ? dataSiswa.kelas : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Status Tempat Tinggal</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.statusTempatTinggal %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Jarak Rumah</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.jarakRumah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Alat Transportasi</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.transportasi %></td>
+				</tr>
+				<tr>
+					<td colspan="3" class="judul" style="padding-top: 10px;">DATA SEKOLAH SEBELUMNYA</td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Jenjang Sekolah</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.jenjang %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Status Sekolah</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.statusSekolah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nama Sekolah</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.namaSekolah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">NPSN</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.npsn %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Alamat Sekolah</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.alamatSekolah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Kabupaten/Kota Lokasi Sekolah</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.kabkotSekolah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">No Peserta UN</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.noUN ? dataSiswa.noUN : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">No SKHUN</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.noSKHUN ? dataSiswa.noSKHUN : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">No Ijazah</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.noIjazah ? dataSiswa.noIjazah : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Total Nilai UN</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.nilaiUN ? dataSiswa.nilaiUN : '-' %></td>
+				</tr>
+				<tr>
+					<td colspan="3" class="judul" style="padding-top: 10px;">DATA ORANG TUA / WALI</td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nomor Kartu Keluarga</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.noKK %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nama Kepala Keluarga</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.namaKK %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Penghasilan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.penghasilan %></td>
+				</tr>
+				<tr>
+					<td colspan="3" class="judul" style="padding-top: 10px;"><i class="fa fa-user judul"></i> DATA AYAH</td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nomor Induk Kewarganegaraan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.nikAyah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nama Lengkap</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.namaAyah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Tahun Lahir</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.tahunAyah %></td>
+				</tr>
+				<br>
+				<tr>
+					<td class="isi" width="35%">Status Orang Tua</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.statusAyah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Pendidikan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.pendidikanAyah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Pekerjaan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.pekerjaanAyah %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">No. Handphone</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.telpAyah ? dataSiswa.telpAyah : '-' %></td>
+				</tr>
+				<tr>
+					<td colspan="3" class="judul" style="padding-top: 10px;"><i class="fa fa-user judul"></i> DATA IBU</td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nomor Induk Kewarganegaraan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.nikIbu %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nama Lengkap</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.namaIbu %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Tahun Lahir</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.tahunIbu %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Status Orang Tua</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.statusIbu %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Pendidikan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.pendidikanIbu %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Pekerjaan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.pekerjaanIbu %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">No. Handphone</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.telpIbu ? dataSiswa.telpIbu : '-' %></td>
+				</tr>
+				<tr>
+					<td colspan="3" class="judul" style="padding-top: 10px;"><i class="fa fa-user judul"></i> DATA WALI</td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nomor Induk Kewarganegaraan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.nikWali ? dataSiswa.nikWali : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Nama Lengkap</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.namaWali ? dataSiswa.namaWali : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Tahun Lahir</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.tahunWali ? dataSiswa.tahunWali : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Pendidikan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.pendidikanWali ? dataSiswa.pendidikanWali : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Pekerjaan</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.pekerjaanWali ? dataSiswa.pekerjaanWali : '-' %></td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">No. Handphone</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><%= dataSiswa.telpWali ?dataSiswa.telpWali : '-' %></td>
+				</tr>
+				<tr>
+					<td colspan="3" class="judul" style="padding-top: 10px;"><i class="fa fa-file-pdf-o judul"></i> BERKAS - BERKAS</td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Berkas Ijazah</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><% if(dataSiswa.fcIjazah) { %> <i class="fa fa-check"></i> (Done) <% }else{ %> - <% } %> </td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Berkas Kartu Keluarga</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><% if(dataSiswa.fcKK) { %> <i class="fa fa-check"></i> (Done) <% }else{ %> - <% } %> </td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Berkas KTP Orang Tua</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><% if(dataSiswa.fcKTPOrtu) { %> <i class="fa fa-check"></i> (Done) <% }else{ %> - <% } %> </td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Berkas Akta Lahir</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><% if(dataSiswa.fcAktaLahir) { %> <i class="fa fa-check"></i> (Done) <% }else{ %> - <% } %> </td>
+				</tr>
+				<tr>
+					<td class="isi" width="35%">Berkas Surat Keterangan Lahir</td>
+					<td width="2%">:</td>
+					<td class="isi" width="63%"><% if(dataSiswa.fcSKL) { %> <i class="fa fa-check"></i> (Done) <% }else{ %> - <% } %> </td>
+				</tr>
+			</table>
+			<br/><br/><br/><br/><br/>
+			<br/><br/><br/><br/><br/>
+			<br/><br/>
+		</div>
+	</div>
+</body>
+</html>
