@@ -10,8 +10,11 @@ const {
   getSiswaSiswi,
   getSiswaSiswibyUid,
   postSiswaSiswi,
+  getPenilaian,
+  postPenilaian,
   downloadTemplate,
   importExcel,
+  exportExcel,
   pdfCreate,
   testing,
 } = require('../controllers/user.controller')
@@ -37,15 +40,20 @@ module.exports = models => {
     .post(postSiswaSiswi(models))
   route.route('/siswasiswi/:uid')
     .get(getSiswaSiswibyUid(models))
+  route.route('/nilai')
+    .get(getPenilaian(models))
+    .post(postPenilaian(models))
   route.route('/template/:roleID')
     .get(downloadTemplate(models))
   route.route('/importexcel')
     .post(uploadFile, importExcel(models))
+  route.route('/exportexcel')
+    .get(exportExcel(models))
   route.route('/pdfcreate/:uid')
     .get(pdfCreate(models))
 
-  route.route('/testing/:uid')
-    .get(testing(models))
+  route.route('/testing')
+    .post(testing(models))
   
   return route;
 }

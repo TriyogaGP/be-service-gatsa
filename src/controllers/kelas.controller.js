@@ -111,9 +111,13 @@ function getKelasSiswa (models) {
 				let splitarr = mengajar.split(', ')
 				let kumpulKelas = []
 				splitarr.map(str => {
-					let split = str.split('-')
-					if(split[0] == kelas){
-						kumpulKelas.push(`${split[0]}-${split[1]}`)
+					if(kelas){
+						let split = str.split('-')
+						if(split[0] == kelas){
+							kumpulKelas.push(`${split[0]}-${split[1]}`)
+						}
+					}else{
+						kumpulKelas.push(str)
 					}
 				})
 
@@ -140,6 +144,7 @@ function getKelasSiswa (models) {
 				return OK(res, result)
 			}
 
+			where.status = true
       const dataKelas = await models.Kelas.findAll({
 				where,
 				order: [

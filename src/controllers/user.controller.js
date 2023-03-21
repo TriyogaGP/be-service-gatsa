@@ -1,5 +1,5 @@
 const { response, OK, NOT_FOUND, NO_CONTENT } = require('../utils/response.utils');
-const { encrypt, decrypt, dateconvert, convertDate3, createKSUID, uppercaseLetterFirst, buildMysqlResponseWithPagination, convertDate } = require('../utils/helper.utils');
+const { encrypt, decrypt, makeRandom, dateconvert, convertDate, convertDate3, createKSUID, uppercaseLetterFirst, buildMysqlResponseWithPagination } = require('../utils/helper.utils');
 const {
 	_allOption,
 	_agamaOption,
@@ -472,9 +472,47 @@ function postStruktural (models) {
 					mengajarKelas: userdetail.mengajarKelas,
 					waliKelas: userdetail.waliKelas,
 				}
+
+				let mapel = userdetail.mengajarBidang.split(', ')
+				let kelas = userdetail.mengajarKelas.split(', ')
+				
+				const mengajar = await models.Mengajar.findAll({ where: { kode: mapel }}); 
+				const dataMengajar = await mengajar.map(str => str.label)
+
+				let kumpul = []
+				await Promise.all(dataMengajar.map(async (val) => {
+					await Promise.all(kelas.map(val2 => {
+						kumpul.push({
+							idUser: user.idUser,
+							mapel: val,
+							kelas: val2
+						})
+					}))
+				}))
+				
+				let kumpulan = []
+				await Promise.all(kumpul.map(async val => {
+					const dataJadwal = await models.JadwalMengajar.findOne({ 
+						where: { idUser: user.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
+						attributes: ['idUser', 'mapel', 'kelas', 'jumlahTugas', 'status']
+					});
+					if(!dataJadwal){
+						return kumpulan.push({
+							idJadwalMengajar: makeRandom(10),
+							idUser: user.idUser,
+							mapel: val.mapel,
+							kelas: val.kelas,
+							jumlahTugas: 10,
+							status: true
+						})
+					}
+					kumpulan.push(dataJadwal)
+				}))
+
 				await sequelizeInstance.transaction(async trx => {
 					await models.User.create(kirimdataUser, { transaction: trx })
 					await models.UserDetail.create(kirimdataUserDetail, { transaction: trx })
+					await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']), { transaction: trx })
 				})
 
 			}else if(user.jenis == 'EDIT'){
@@ -516,9 +554,49 @@ function postStruktural (models) {
 					mengajarKelas: userdetail.mengajarKelas,
 					waliKelas: userdetail.waliKelas,
 				}
+
+				let mapel = userdetail.mengajarBidang.split(', ')
+				let kelas = userdetail.mengajarKelas.split(', ')
+				
+				const mengajar = await models.Mengajar.findAll({ where: { kode: mapel }}); 
+				const dataMengajar = await mengajar.map(str => str.label)
+
+				let kumpul = []
+				await Promise.all(dataMengajar.map(async (val) => {
+					await Promise.all(kelas.map(val2 => {
+						kumpul.push({
+							idUser: user.idUser,
+							mapel: val,
+							kelas: val2
+						})
+					}))
+				}))
+				
+				await models.JadwalMengajar.destroy({ where: { idUser: user.idUser } });
+
+				let kumpulan = []
+				await Promise.all(kumpul.map(async val => {
+					const dataJadwal = await models.JadwalMengajar.findOne({ 
+						where: { idUser: user.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
+						attributes: ['idUser', 'mapel', 'kelas', 'jumlahTugas', 'status']
+					});
+					if(!dataJadwal){
+						return kumpulan.push({
+							idJadwalMengajar: makeRandom(10),
+							idUser: user.idUser,
+							mapel: val.mapel,
+							kelas: val.kelas,
+							jumlahTugas: 10,
+							status: true
+						})
+					}
+					kumpulan.push(dataJadwal)
+				}))
+
 				await sequelizeInstance.transaction(async trx => {
 					await models.User.update(kirimdataUser, { where: { idUser: user.idUser } }, { transaction: trx })
 					await models.UserDetail.update(kirimdataUserDetail, { where: { idUser: user.idUser } }, { transaction: trx })
+					await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']), { transaction: trx })
 				})
 			}else if(user.jenis == 'DELETE'){
 				kirimdataUser = {
@@ -571,7 +649,7 @@ function getSiswaSiswi (models) {
 
       const { count, rows: dataSiswaSiswi } = await models.User.findAndCountAll({
 				where,
-				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
+				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'updatedAt', 'deletedAt'] },
 				include: [
 					{ 
 						model: models.Role,
@@ -680,6 +758,7 @@ function getSiswaSiswi (models) {
 					},
 					mutasiAkun: val.mutasiAkun,
 					validasiAkun: val.validasiAkun,
+					condition: new Date().getDate() === new Date(val.createdAt).getDate() ? true : false,
 					statusAktif: val.statusAktif,
 				}
 			}))
@@ -699,6 +778,8 @@ function getSiswaSiswi (models) {
 function getSiswaSiswibyUid (models) {
   return async (req, res, next) => {
 		let { uid } = req.params
+		let { mapel } = req.query
+		let where = {}
 		try {
       const dataSiswaSiswi = await models.User.findOne({
 				where: { idUser: uid },
@@ -719,6 +800,21 @@ function getSiswaSiswibyUid (models) {
 			});
 
 			// return OK(res, dataSiswaSiswi)
+			let dataJadwal = null
+			let dataStruktural = null
+			if(mapel) {
+				where.mapel = mapel
+				where.kelas = dataSiswaSiswi.UserDetail.kelas
+				where.status = true
+				dataJadwal = await models.JadwalMengajar.findOne({ where });
+				if(dataJadwal) {
+					dataStruktural = await models.User.findOne({ where: { idUser: dataJadwal.idUser } });
+				}else{
+					dataJadwal = null
+					dataStruktural = null
+				}
+			}
+
 			return OK(res, {
 				idUser: dataSiswaSiswi.idUser,
 				consumerType: dataSiswaSiswi.consumerType,
@@ -804,6 +900,11 @@ function getSiswaSiswibyUid (models) {
 					fcKTPOrtu: dataSiswaSiswi.UserDetail.fcKTPOrtu ? `${BASE_URL}pdf/${dataSiswaSiswi.UserDetail.fcKTPOrtu}` : null,
 					fcAktaLahir: dataSiswaSiswi.UserDetail.fcAktaLahir ? `${BASE_URL}pdf/${dataSiswaSiswi.UserDetail.fcAktaLahir}` : null,
 					fcSKL: dataSiswaSiswi.UserDetail.fcSKL ? `${BASE_URL}pdf/${dataSiswaSiswi.UserDetail.fcSKL}` : null,
+				},
+				dataPenilaian: {
+					namaGuru: dataStruktural ? dataStruktural.nama : '-',
+					jumlahTugas: dataJadwal ? dataJadwal.jumlahTugas : '0',
+					kkm: dataJadwal ? dataJadwal.kkm : '0',
 				},
 				statusAktif: dataSiswaSiswi.statusAktif,
 			})
@@ -915,9 +1016,37 @@ function postSiswaSiswi (models) {
 					jarakRumah: userdetail.dataLainnya.jarakRumah,
 					transportasi: userdetail.dataLainnya.transportasi,
 				}
+
+				let dataMengajar = await _allOption({ table: models.Mengajar })
+				let kirimdataNilai = []
+				await dataMengajar.map(str => {
+					kirimdataNilai.push({
+						idUser: ksuid,
+						mapel: str.label,
+						dataNilai: JSON.stringify([
+							{
+								nilai: {
+									tugas1: 0,
+									tugas2: 0,
+									tugas3: 0,
+									tugas4: 0,
+									tugas5: 0,
+									tugas6: 0,
+									tugas7: 0,
+									tugas8: 0,
+									tugas9: 0,
+									tugas10: 0,
+									uts: 0,
+									uas: 0
+								}
+							}
+						])
+					})
+				})
 				await sequelizeInstance.transaction(async trx => {
 					await models.User.create(kirimdataUser, { transaction: trx })
 					await models.UserDetail.create(kirimdataUserDetail, { transaction: trx })
+					await models.Nilai.bulkCreate(kirimdataNilai, { transaction: trx })
 				})
 
 			}else if(user.jenis == 'EDIT'){
@@ -1043,6 +1172,78 @@ function postSiswaSiswi (models) {
   }  
 }
 
+function getPenilaian (models) {
+	return async (req, res, next) => {
+		let { idUser, kelas, mapel } = req.query
+		let where = {}
+		try {
+			if(idUser){
+				where.idUser = idUser
+				where.kelas = kelas
+			}
+			if(kelas){
+				where.kelas = kelas
+			}
+
+			const dataSiswaSiswi = await models.UserDetail.findAll({
+				where,
+				attributes: ['idUser'],
+				order: [
+					['nomorInduk', 'ASC'],
+				],
+			});
+			const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: kelas, mapel: mapel, status: true } });
+			let arrayData = await dataSiswaSiswi.map(str => { return str.idUser })
+			const dataNilai = await models.Nilai.findAll({ where: { idUser: arrayData, mapel: mapel } });
+
+			let result = await Promise.all(dataNilai.map(async (str) => {
+				let hasil = JSON.parse(str.dataNilai)
+				return {
+					idUser: str.idUser,
+					mapel: str.mapel,
+					nilai: hasil[0].nilai,
+				}
+			}))
+
+			return OK(res, {
+				dataSiswaSiswi: result,
+				jumlahTugas: dataJadwal ? dataJadwal.jumlahTugas : '0',
+				kkm: dataJadwal ? dataJadwal.kkm : '0',
+			})
+		} catch (err) {
+			return NOT_FOUND(res, err.message)
+		}
+	}
+}
+
+function postPenilaian (models) {
+	return async (req, res, next) => {
+		let body = req.body
+		try {
+			let kirimdata
+			if(body.jenis === 'nilai'){
+				kirimdata = {
+					idUser: body.idUser,
+					mapel: body.mapel,
+					dataNilai: JSON.stringify(body.dataNilai),
+				}
+				await models.Nilai.update(kirimdata, { where: { idUser: body.idUser, mapel: body.mapel } })
+			}
+			if(body.jenis === 'jumlah_tugas'){
+				kirimdata = {
+					jumlahTugas: body.jumlahTugas,
+					kkm: body.kkm,
+				}
+				await models.JadwalMengajar.update(kirimdata, { where: { kelas: body.kelas, mapel: body.mapel } })
+			}
+			
+			return OK(res, body)
+		} catch (err) {
+			return NOT_FOUND(res, err.message)
+		}
+	}
+}
+
 function downloadTemplate (models) {
 	return async (req, res, next) => {
 		let { roleID } = req.params
@@ -1065,56 +1266,56 @@ function downloadTemplate (models) {
 
 				//Data Siswa
 				worksheet.columns = [
-					{ header: "NAMA", key: "name", width: 20 },
+					{ header: "NAMA", key: "nama", width: 20 },
 					{ header: "EMAIL", key: "email", width: 20 },
-					{ header: "NIK SISWA", key: "nik_siswa", width: 20 },
-					{ header: "NISN", key: "nomor_induk", width: 20 },
-					{ header: "TANGGAL LAHIR", key: "tgl_lahir", width: 20 },
+					{ header: "NIK SISWA", key: "nikSiswa", width: 20 },
+					{ header: "NISN", key: "nomorInduk", width: 20 },
+					{ header: "TANGGAL LAHIR", key: "tanggalLahir", width: 20 },
 					{ header: "TEMPAT", key: "tempat", width: 20 },
-					{ header: "JENIS KELAMIN", key: "jeniskelamin", width: 20 },
+					{ header: "JENIS KELAMIN", key: "jenisKelamin", width: 20 },
 					{ header: "AGAMA", key: "agama", width: 20 },
-					{ header: "ANAK KE", key: "anakke", width: 20 },
-					{ header: "JUMLAH SAUDARA", key: "jumlah_saudara", width: 20 },
+					{ header: "ANAK KE", key: "anakKe", width: 20 },
+					{ header: "JUMLAH SAUDARA", key: "jumlahSaudara", width: 20 },
 					{ header: "HOBI", key: "hobi", width: 20 },
-					{ header: "CITA-CITA", key: "cita_cita", width: 20 },
+					{ header: "CITA-CITA", key: "citaCita", width: 20 },
 					{ header: "JENJANG SEKOLAH", key: "jenjang", width: 20 },
-					{ header: "NAMA SEKOLAH", key: "nama_sekolah", width: 20 },
-					{ header: "STATUS SEKOLAH", key: "status_sekolah", width: 20 },
+					{ header: "NAMA SEKOLAH", key: "namaSekolah", width: 20 },
+					{ header: "STATUS SEKOLAH", key: "statusSekolah", width: 20 },
 					{ header: "NPSN", key: "npsn", width: 20 },
-					{ header: "ALAMAT SEKOLAH", key: "alamat_sekolah", width: 40 },
-					{ header: "KABUPATEN / KOTA SEKOLAH SEBELUMNYA", key: "kabkot_sekolah", width: 20 },
-					{ header: "NOMOR KK", key: "no_kk", width: 20 },
-					{ header: "NAMA KEPALA KELUARGA", key: "nama_kk", width: 20 },
-					{ header: "NIK AYAH", key: "nik_ayah", width: 20 },
-					{ header: "NAMA AYAH", key: "nama_ayah", width: 20 },
-					{ header: "TAHUN AYAH", key: "tahun_ayah", width: 20 },
-					{ header: "STATUS AYAH", key: "status_ayah", width: 20 },
-					{ header: "PENDIDIKAN AYAH", key: "pendidikan_ayah", width: 20 },
-					{ header: "PEKERJAAN AYAH", key: "pekerjaan_ayah", width: 20 },
-					{ header: "NO HANDPHONE AYAH", key: "telp_ayah", width: 20 },
-					{ header: "NIK IBU", key: "nik_ibu", width: 20 },
-					{ header: "NAMA IBU", key: "nama_ibu", width: 20 },
-					{ header: "TAHUN IBU", key: "tahun_ibu", width: 20 },
-					{ header: "STATUS IBU", key: "status_ibu", width: 20 },
-					{ header: "PENDIDIKAN IBU", key: "pendidikan_ibu", width: 20 },
-					{ header: "PEKERJAAN IBU", key: "pekerjaan_ibu", width: 20 },
-					{ header: "NO HANDPHONE IBU", key: "telp_ibu", width: 20 },
-					{ header: "NIK WALI", key: "nik_wali", width: 20 },
-					{ header: "NAMA WALI", key: "nama_wali", width: 20 },
-					{ header: "TAHUN WALI", key: "tahun_wali", width: 20 },
-					{ header: "PENDIDIKAN WALI", key: "pendidikan_wali", width: 20 },
-					{ header: "PEKERJAAN WALI", key: "pekerjaan_wali", width: 20 },
-					{ header: "NO HANDPHONE WALI", key: "telp_wali", width: 20 },
+					{ header: "ALAMAT SEKOLAH", key: "alamatSekolah", width: 40 },
+					{ header: "KABUPATEN / KOTA SEKOLAH SEBELUMNYA", key: "kabkotSekolah", width: 20 },
+					{ header: "NOMOR KK", key: "noKK", width: 20 },
+					{ header: "NAMA KEPALA KELUARGA", key: "namaKK", width: 20 },
+					{ header: "NIK AYAH", key: "nikAyah", width: 20 },
+					{ header: "NAMA AYAH", key: "namaAyah", width: 20 },
+					{ header: "TAHUN AYAH", key: "tahunAyah", width: 20 },
+					{ header: "STATUS AYAH", key: "statusAyah", width: 20 },
+					{ header: "PENDIDIKAN AYAH", key: "pendidikanAyah", width: 20 },
+					{ header: "PEKERJAAN AYAH", key: "pekerjaanAyah", width: 20 },
+					{ header: "NO HANDPHONE AYAH", key: "telpAyah", width: 20 },
+					{ header: "NIK IBU", key: "nikIbu", width: 20 },
+					{ header: "NAMA IBU", key: "namaIbu", width: 20 },
+					{ header: "TAHUN IBU", key: "tahunIbu", width: 20 },
+					{ header: "STATUS IBU", key: "statusIbu", width: 20 },
+					{ header: "PENDIDIKAN IBU", key: "pendidikanIbu", width: 20 },
+					{ header: "PEKERJAAN IBU", key: "pekerjaanIbu", width: 20 },
+					{ header: "NO HANDPHONE IBU", key: "telpIbu", width: 20 },
+					{ header: "NIK WALI", key: "nikWali", width: 20 },
+					{ header: "NAMA WALI", key: "namaWali", width: 20 },
+					{ header: "TAHUN WALI", key: "tahunWali", width: 20 },
+					{ header: "PENDIDIKAN WALI", key: "pendidikanWali", width: 20 },
+					{ header: "PEKERJAAN WALI", key: "pekerjaanWali", width: 20 },
+					{ header: "NO HANDPHONE WALI", key: "telpWali", width: 20 },
 					{ header: "TELEPON", key: "telp", width: 20 },
 					{ header: "ALAMAT", key: "alamat", width: 40 },
 					{ header: "PROVINSI", key: "provinsi", width: 20 },
-					{ header: "KABUPATEN / KOTA", key: "kabkota", width: 20 },
+					{ header: "KABUPATEN / KOTA", key: "kabKota", width: 20 },
 					{ header: "KECAMATAN", key: "kecamatan", width: 20 },
 					{ header: "KELURAHAN", key: "kelurahan", width: 20 },
-					{ header: "KODE POS", key: "kode_pos", width: 20 },
+					{ header: "KODE POS", key: "kodePos", width: 20 },
 					{ header: "PENGHASILAN", key: "penghasilan", width: 20 },
-					{ header: "STATUS TEMPAT TINGGAL", key: "status_tempat_tinggal", width: 20 },
-					{ header: "JARAK RUMAH", key: "jarak_rumah", width: 20 },
+					{ header: "STATUS TEMPAT TINGGAL", key: "statusTempatTinggal", width: 20 },
+					{ header: "JARAK RUMAH", key: "jarakRumah", width: 20 },
 					{ header: "TRANSPORTASI", key: "transportasi", width: 20 },
 				];
 				const figureColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 ,19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51];
@@ -1122,56 +1323,56 @@ function downloadTemplate (models) {
 					worksheet.getColumn(i).alignment = { horizontal: "left" };
 				});
 				worksheet.addRows([{
-					name: 'tes', 
+					nama: 'tes', 
 					email: 'tes@gmail.com', 
-					nik_siswa: '123', 
-					nomor_induk: '123', 
-					tgl_lahir: new Date(),
+					nikSiswa: '123', 
+					nomorInduk: '123', 
+					tanggalLahir: new Date(),
 					tempat: 'Bogor', 
-					jeniskelamin: 'Laki - Laki', 
+					jenisKelamin: 'Laki - Laki', 
 					agama: 1, 
-					anakke: '1', 
-					jumlah_saudara: '1', 
+					anakKe: '1', 
+					jumlahSaudara: '1', 
 					hobi: 1, 
-					cita_cita: 1, 
+					citaCita: 1, 
 					jenjang: 1, 
-					nama_sekolah: 'SD. Teka Teki', 
-					status_sekolah: 1, 
+					namaSekolah: 'SD. Teka Teki', 
+					statusSekolah: 1, 
 					npsn: '123', 
-					alamat_sekolah: 'Bogor', 
-					kabkot_sekolah: '32.01', 
-					no_kk: '123', 
-					nama_kk: 'Andre', 
-					nik_ayah: '123', 
-					nama_ayah: 'Andre', 
-					tahun_ayah: '1970', 
-					status_ayah: 1, 
-					pendidikan_ayah: 1, 
-					pekerjaan_ayah: 1, 
-					telp_ayah: '123456789', 
-					nik_ibu: '123', 
-					nama_ibu: 'Susi', 
-					tahun_ibu: '1989', 
-					status_ibu: 1, 
-					pendidikan_ibu: 1, 
-					pekerjaan_ibu: 1, 
-					telp_ibu: '123456789', 
-					nik_wali: '', 
-					nama_wali: '', 
-					tahun_wali: '', 
-					pendidikan_wali: null, 
-					pekerjaan_wali: null, 
-					telp_wali: '123456789', 
+					alamatSekolah: 'Bogor', 
+					kabkotSekolah: '32.01', 
+					noKK: '123', 
+					namaKK: 'Andre', 
+					nikAyah: '123', 
+					namaAyah: 'Andre', 
+					tahunAyah: '1970', 
+					statusAyah: 1, 
+					pendidikanAyah: 1, 
+					pekerjaanAyah: 1, 
+					telpAyah: '123456789', 
+					nikIbu: '123', 
+					namaIbu: 'Susi', 
+					tahunIbu: '1989', 
+					statusIbu: 1, 
+					pendidikanIbu: 1, 
+					pekerjaanIbu: 1, 
+					telpIbu: '123456789', 
+					nikWali: '', 
+					namaWali: '', 
+					tahunWali: '', 
+					pendidikanWali: null, 
+					pekerjaanWali: null, 
+					telpWali: '123456789', 
 					telp: '123456789', 
 					alamat: 'Bogor', 
 					provinsi: '32', 
-					kabkota: '32.01', 
+					kabKota: '32.01', 
 					kecamatan: '32.01.01', 
 					kelurahan: '32.01.01.1002', 
-					kode_pos: '16913',
+					kodePos: '16913',
 					penghasilan: 1,
-					status_tempat_tinggal: 1,
-					jarak_rumah: 1,
+					statusTempatTinggal: 1,
+					jarakRumah: 1,
 					transportasi: 1,
 				}]);
 				
@@ -1646,14 +1847,243 @@ function importExcel (models) {
 							jarakRumah: str.jarakRumah,
 							transportasi: str.transportasi,
 						}
+
+						let dataMengajar = await _allOption({ table: models.Mengajar })
+						let kirimdataNilai = []
+						await dataMengajar.map(str => {
+							kirimdataNilai.push({
+								idUser: ksuid,
+								mapel: str.label,
+								dataNilai: JSON.stringify([
+									{
+										nilai: {
+											tugas1: 0,
+											tugas2: 0,
+											tugas3: 0,
+											tugas4: 0,
+											tugas5: 0,
+											tugas6: 0,
+											tugas7: 0,
+											tugas8: 0,
+											tugas9: 0,
+											tugas10: 0,
+											uts: 0,
+											uas: 0
+										}
+									}
+								])
+							})
+						})
 						await sequelizeInstance.transaction(async trx => {
 							await models.User.create(kirimdataUser, { transaction: trx })
 							await models.UserDetail.create(kirimdataUserDetail, { transaction: trx })
+							await models.Nilai.bulkCreate(kirimdataNilai, { transaction: trx })
 						})	
 					}))
 				}
 				return OK(res, { jsonDataInsert: jsonDataInsert.length, jsonDataPending: jsonDataPending.length })
 			})
+	  } catch (err) {
+			  return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
+function exportExcel (models) {
+	return async (req, res, next) => {
+		let { kelas } = req.query
+	  try {
+			let workbook = new excel.Workbook();
+			let split = kelas.split(', ')
+			for (let index = 0; index < split.length; index++) {
+				let whereUserDetail = {}
+				let whereUser = {}
+				if(kelas){
+					whereUserDetail.kelas = split[index]
+					whereUser.mutasiAkun = false
+				}
+				const dataSiswaSiswi = await models.User.findAll({
+					where: whereUser,
+					attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
+					include: [
+						{ 
+							model: models.Role,
+							attributes: ['namaRole'],
+							where: { status: true }
+						},
+						{ 
+							model: models.UserDetail,
+							where: whereUserDetail
+						},
+					],
+				});
+	
+				const result = await Promise.all(dataSiswaSiswi.map(async val => {
+					let agama = await _agamaOption({ models, kode: val.UserDetail.agama })
+					let hobi = await _hobiOption({ models, kode: val.UserDetail.hobi })
+					let cita_cita = await _citacitaOption({ models, kode: val.UserDetail.citaCita })
+					let jenjang = await _jenjangsekolahOption({ models, kode: val.UserDetail.jenjang })
+					let status_sekolah = await _statussekolahOption({ models, kode: val.UserDetail.statusSekolah })
+					let kabkota_sekolah = await _wilayahOption({ models, kode: val.UserDetail.kabkotSekolah })
+					let status_ayah = await _statusortuOption({ models, kode: val.UserDetail.statusAyah })
+					let status_ibu = await _statusortuOption({ models, kode: val.UserDetail.statusIbu })
+					let pendidikan_ayah = await _pendidikanOption({ models, kode: val.UserDetail.pendidikanAyah })
+					let pendidikan_ibu = await _pendidikanOption({ models, kode: val.UserDetail.pendidikanIbu })
+					let pendidikan_wali = await _pendidikanOption({ models, kode: val.UserDetail.pendidikanWali })
+					let pekerjaan_ayah = await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanAyah })
+					let pekerjaan_ibu = await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanIbu })
+					let pekerjaan_wali = await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanWali })
+					let penghasilan = await _penghasilanOption({ models, kode: val.UserDetail.penghasilan })
+					let provinsi = await _wilayahOption({ models, kode: val.UserDetail.provinsi })
+					let kabkota = await _wilayahOption({ models, kode: val.UserDetail.kabKota })
+					let kecamatan = await _wilayahOption({ models, kode: val.UserDetail.kecamatan })
+					let kelurahan = await _wilayahOption({ models, kode: val.UserDetail.kelurahan })
+					let status_tempat_tinggal = await _statustempattinggalOption({ models, kode: val.UserDetail.statusTempatTinggal })
+					let jarak_rumah = await _jarakrumahOption({ models, kode: val.UserDetail.jarakRumah })
+					let transportasi = await _transportasiOption({ models, kode: val.UserDetail.transportasi })
+	
+					return {
+						idUser: val.idUser,
+						consumerType: val.consumerType,
+						nikSiswa: val.UserDetail.nikSiswa,
+						nomorInduk: val.UserDetail.nomorInduk,
+						namaRole: val.Role.namaRole,
+						nama: val.nama,
+						username: val.username,
+						email: val.email,
+						password: val.password,
+						kataSandi: val.kataSandi,
+						tempat: val.UserDetail.tempat,
+						tanggalLahir: val.UserDetail.tanggalLahir,
+						jenisKelamin: val.UserDetail.jenisKelamin,
+						agama: val.UserDetail.agama ? agama.label : null,
+						anakKe: val.UserDetail.anakKe,
+						jumlahSaudara: val.UserDetail.jumlahSaudara,
+						hobi: val.UserDetail.hobi ? hobi.label : null,
+						citaCita: val.UserDetail.citaCita ? cita_cita.label : null,
+						jenjang: val.UserDetail.jenjang ? jenjang.label : null,
+						statusSekolah: val.UserDetail.statusSekolah ? status_sekolah.label : null,
+						namaSekolah: val.UserDetail.namaSekolah,
+						npsn: val.UserDetail.npsn,
+						alamatSekolah: val.UserDetail.alamatSekolah,
+						kabkotSekolah: val.UserDetail.kabkotSekolah ? uppercaseLetterFirst(kabkota_sekolah.nama) : null,
+						noPesertaUN: val.UserDetail.noPesertaUN,
+						noSKHUN: val.UserDetail.noSKHUN,
+						noIjazah: val.UserDetail.noIjazah,
+						nilaiUN: val.UserDetail.nilaiUN,
+						noKK: val.UserDetail.noKK,
+						namaKK: val.UserDetail.namaKK,
+						namaAyah: val.UserDetail.namaAyah,
+						tahunAyah: val.UserDetail.tahunAyah,
+						statusAyah: val.UserDetail.statusAyah ? status_ayah.label : null,
+						nikAyah: val.UserDetail.nikAyah,
+						pendidikanAyah: val.UserDetail.pendidikanAyah ? pendidikan_ayah.label : null,
+						pekerjaanAyah: val.UserDetail.pekerjaanAyah ? pekerjaan_ayah.label : null,
+						telpAyah: val.UserDetail.telpAyah,
+						namaIbu: val.UserDetail.namaIbu,
+						tahunIbu: val.UserDetail.tahunIbu,
+						statusIbu: val.UserDetail.statusIbu ? status_ibu.label : null,
+						nikIbu: val.UserDetail.nikIbu,
+						pendidikanIbu: val.UserDetail.pendidikanIbu ? pendidikan_ibu.label : null,
+						pekerjaanIbu: val.UserDetail.pekerjaanIbu ? pekerjaan_ibu.label : null,
+						telpIbu: val.UserDetail.telpIbu,
+						namaWali: val.UserDetail.namaWali,
+						tahunWali: val.UserDetail.tahunWali,
+						nikWali: val.UserDetail.nikWali,
+						pendidikanWali: val.UserDetail.pendidikanWali ? pendidikan_wali.label : null,
+						pekerjaanWali: val.UserDetail.pekerjaanWali ? pekerjaan_wali.label : null,
+						telpWali: val.UserDetail.telpWali,
+						penghasilan: val.UserDetail.penghasilan ? penghasilan.label : null,
+						telp: val.UserDetail.telp,
+						alamat: val.UserDetail.alamat,
+						provinsi: val.UserDetail.provinsi ? uppercaseLetterFirst(provinsi.nama) : null,
+						kabKota: val.UserDetail.kabKota ? uppercaseLetterFirst(kabkota.nama) : null,
+						kecamatan: val.UserDetail.kecamatan ? uppercaseLetterFirst(kecamatan.nama) : null,
+						kelurahan: val.UserDetail.kelurahan ? uppercaseLetterFirst(kelurahan.nama) : null,
+						kodePos: val.UserDetail.kodePos,
+						kelas: val.UserDetail.kelas,
+						statusTempatTinggal: val.UserDetail.statusTempatTinggal ? status_tempat_tinggal.label : null,
+						jarakRumah: val.UserDetail.jarakRumah ? jarak_rumah.label : null,
+						transportasi: val.UserDetail.transportasi ? transportasi.label : null,
+					}
+				}))
+	
+				let worksheet = workbook.addWorksheet(`Kelas ${split[index]}`);
+
+				//Data Siswa
+				worksheet.columns = [
+					{ header: "NAMA", key: "nama", width: 20 },
+					{ header: "EMAIL", key: "email", width: 20 },
+					{ header: "NIK SISWA", key: "nikSiswa", width: 20 },
+					{ header: "NISN", key: "nomorInduk", width: 20 },
+					{ header: "TANGGAL LAHIR", key: "tanggalLahir", width: 20 },
+					{ header: "TEMPAT", key: "tempat", width: 20 },
+					{ header: "JENIS KELAMIN", key: "jenisKelamin", width: 20 },
+					{ header: "AGAMA", key: "agama", width: 20 },
+					{ header: "ANAK KE", key: "anakKe", width: 20 },
+					{ header: "JUMLAH SAUDARA", key: "jumlahSaudara", width: 20 },
+					{ header: "HOBI", key: "hobi", width: 20 },
+					{ header: "CITA-CITA", key: "citaCita", width: 20 },
+					{ header: "JENJANG SEKOLAH", key: "jenjang", width: 20 },
+					{ header: "NAMA SEKOLAH", key: "namaSekolah", width: 20 },
+					{ header: "STATUS SEKOLAH", key: "statusSekolah", width: 20 },
+					{ header: "NPSN", key: "npsn", width: 20 },
+					{ header: "ALAMAT SEKOLAH", key: "alamatSekolah", width: 40 },
+					{ header: "KABUPATEN / KOTA SEKOLAH SEBELUMNYA", key: "kabkotSekolah", width: 20 },
+					{ header: "NOMOR KK", key: "noKK", width: 20 },
+					{ header: "NAMA KEPALA KELUARGA", key: "namaKK", width: 20 },
+					{ header: "NIK AYAH", key: "nikAyah", width: 20 },
+					{ header: "NAMA AYAH", key: "namaAyah", width: 20 },
+					{ header: "TAHUN AYAH", key: "tahunAyah", width: 20 },
+					{ header: "STATUS AYAH", key: "statusAyah", width: 20 },
+					{ header: "PENDIDIKAN AYAH", key: "pendidikanAyah", width: 20 },
+					{ header: "PEKERJAAN AYAH", key: "pekerjaanAyah", width: 20 },
+					{ header: "NO HANDPHONE AYAH", key: "telpAyah", width: 20 },
+					{ header: "NIK IBU", key: "nikIbu", width: 20 },
+					{ header: "NAMA IBU", key: "namaIbu", width: 20 },
+					{ header: "TAHUN IBU", key: "tahunIbu", width: 20 },
+					{ header: "STATUS IBU", key: "statusIbu", width: 20 },
+					{ header: "PENDIDIKAN IBU", key: "pendidikanIbu", width: 20 },
+					{ header: "PEKERJAAN IBU", key: "pekerjaanIbu", width: 20 },
+					{ header: "NO HANDPHONE IBU", key: "telpIbu", width: 20 },
+					{ header: "NIK WALI", key: "nikWali", width: 20 },
+					{ header: "NAMA WALI", key: "namaWali", width: 20 },
+					{ header: "TAHUN WALI", key: "tahunWali", width: 20 },
+					{ header: "PENDIDIKAN WALI", key: "pendidikanWali", width: 20 },
+					{ header: "PEKERJAAN WALI", key: "pekerjaanWali", width: 20 },
+					{ header: "NO HANDPHONE WALI", key: "telpWali", width: 20 },
+					{ header: "TELEPON", key: "telp", width: 20 },
+					{ header: "ALAMAT", key: "alamat", width: 40 },
+					{ header: "PROVINSI", key: "provinsi", width: 20 },
+					{ header: "KABUPATEN / KOTA", key: "kabKota", width: 20 },
+					{ header: "KECAMATAN", key: "kecamatan", width: 20 },
+					{ header: "KELURAHAN", key: "kelurahan", width: 20 },
+					{ header: "KODE POS", key: "kodePos", width: 20 },
+					{ header: "PENGHASILAN", key: "penghasilan", width: 20 },
+					{ header: "STATUS TEMPAT TINGGAL", key: "statusTempatTinggal", width: 20 },
+					{ header: "JARAK RUMAH", key: "jarakRumah", width: 20 },
+					{ header: "TRANSPORTASI", key: "transportasi", width: 20 },
+				];
+				const figureColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 ,19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51];
+				figureColumns.forEach((i) => {
+					worksheet.getColumn(i).alignment = { horizontal: "left" };
+				});
+				worksheet.addRows(result);
+
+				res.setHeader(
+					"Content-Disposition",
+					"attachment; filename=ExportSiswa.xlsx"
+				);
+			}
+	
+			res.setHeader(
+				"Content-Type",
+				"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+			);
+  
+			return workbook.xlsx.write(res).then(function () {
+				res.status(200).end();
+			});
 	  } catch (err) {
 			  return NOT_FOUND(res, err.message)
 	  }
@@ -1835,171 +2265,48 @@ function pdfCreate (models) {
 
 function testing (models) {
 	return async (req, res, next) => {
-		let { uid } = req.params
+		let body = req.body
 		try {
-			const dataSiswaSiswi = await models.User.findOne({
-				where: { idUser: uid },
-				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
-				include: [
-					{ 
-						model: models.Role,
-						attributes: ['namaRole'],
-						where: { status: true }
-					},
-					{ 
-						model: models.UserDetail,
-					},
-				],
-				order: [
-					['createdAt', 'DESC'],
-				],
-			});
+			let mapel = body.mengajarBidang.split(', ')
+			let kelas = body.mengajarKelas.split(', ')
 			
-			let agama = await _agamaOption({ models, kode: dataSiswaSiswi.UserDetail.agama })
-			let hobi = await _hobiOption({ models, kode: dataSiswaSiswi.UserDetail.hobi })
-			let cita_cita = await _citacitaOption({ models, kode: dataSiswaSiswi.UserDetail.citaCita })
-			let jenjang = await _jenjangsekolahOption({ models, kode: dataSiswaSiswi.UserDetail.jenjang })
-			let status_sekolah = await _statussekolahOption({ models, kode: dataSiswaSiswi.UserDetail.statusSekolah })
-			let kabkota_sekolah = await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.kabkotSekolah })
-			let status_ayah = await _statusortuOption({ models, kode: dataSiswaSiswi.UserDetail.statusAyah })
-			let status_ibu = await _statusortuOption({ models, kode: dataSiswaSiswi.UserDetail.statusIbu })
-			let pendidikan_ayah = await _pendidikanOption({ models, kode: dataSiswaSiswi.UserDetail.pendidikanAyah })
-			let pendidikan_ibu = await _pendidikanOption({ models, kode: dataSiswaSiswi.UserDetail.pendidikanIbu })
-			let pendidikan_wali = await _pendidikanOption({ models, kode: dataSiswaSiswi.UserDetail.pendidikanWali })
-			let pekerjaan_ayah = await _pekerjaanOption({ models, kode: dataSiswaSiswi.UserDetail.pekerjaanAyah })
-			let pekerjaan_ibu = await _pekerjaanOption({ models, kode: dataSiswaSiswi.UserDetail.pekerjaanIbu })
-			let pekerjaan_wali = await _pekerjaanOption({ models, kode: dataSiswaSiswi.UserDetail.pekerjaanWali })
-			let penghasilan = await _penghasilanOption({ models, kode: dataSiswaSiswi.UserDetail.penghasilan })
-			let provinsi = await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.provinsi })
-			let kabkota = await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.kabKota })
-			let kecamatan = await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.kecamatan })
-			let kelurahan = await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.kelurahan })
-			let status_tempat_tinggal = await _statustempattinggalOption({ models, kode: dataSiswaSiswi.UserDetail.statusTempatTinggal })
-			let jarak_rumah = await _jarakrumahOption({ models, kode: dataSiswaSiswi.UserDetail.jarakRumah })
-			let transportasi = await _transportasiOption({ models, kode: dataSiswaSiswi.UserDetail.transportasi })
+			const mengajar = await models.Mengajar.findAll({ where: { kode: mapel }}); 
+			const dataMengajar = await mengajar.map(str => str.label)
 
-			const hasil = {
-				url: BASE_URL,
-				idUser: dataSiswaSiswi.idUser,
-				consumerType: dataSiswaSiswi.consumerType,
-				nikSiswa: dataSiswaSiswi.UserDetail.nikSiswa,
-				nomorInduk: dataSiswaSiswi.UserDetail.nomorInduk,
-				namaRole: dataSiswaSiswi.Role.namaRole,
-				nama: dataSiswaSiswi.nama,
-				username: dataSiswaSiswi.username,
-				email: dataSiswaSiswi.email,
-				password: dataSiswaSiswi.password,
-				kataSandi: dataSiswaSiswi.kataSandi,
-				tempat: dataSiswaSiswi.UserDetail.tempat,
-				tanggalLahir: dateconvert(dataSiswaSiswi.UserDetail.tanggalLahir),
-				jenisKelamin: dataSiswaSiswi.UserDetail.jenisKelamin,
-				agama: dataSiswaSiswi.UserDetail.agama ? agama.label : null,
-				anakKe: dataSiswaSiswi.UserDetail.anakKe,
-				jumlahSaudara: dataSiswaSiswi.UserDetail.jumlahSaudara,
-				hobi: dataSiswaSiswi.UserDetail.hobi ? hobi.label : null,
-				citaCita: dataSiswaSiswi.UserDetail.citaCita ? cita_cita.label : null,
-				// dataSekolahSebelumnya: {
-					jenjang: dataSiswaSiswi.UserDetail.jenjang ? jenjang.label : null,
-					statusSekolah: dataSiswaSiswi.UserDetail.statusSekolah ? status_sekolah.label : null,
-					namaSekolah: dataSiswaSiswi.UserDetail.namaSekolah,
-					npsn: dataSiswaSiswi.UserDetail.npsn,
-					alamatSekolah: dataSiswaSiswi.UserDetail.alamatSekolah,
-					kabkotSekolah: dataSiswaSiswi.UserDetail.kabkotSekolah ? uppercaseLetterFirst(kabkota_sekolah.nama) : null,
-					noPesertaUN: dataSiswaSiswi.UserDetail.noPesertaUN,
-					noSKHUN: dataSiswaSiswi.UserDetail.noSKHUN,
-					noIjazah: dataSiswaSiswi.UserDetail.noIjazah,
-					nilaiUN: dataSiswaSiswi.UserDetail.nilaiUN,
-				// },
-				noKK: dataSiswaSiswi.UserDetail.noKK,
-				namaKK: dataSiswaSiswi.UserDetail.namaKK,
-				// dataOrangtua: {
-				// 	dataAyah: {
-						namaAyah: dataSiswaSiswi.UserDetail.namaAyah,
-						tahunAyah: dataSiswaSiswi.UserDetail.tahunAyah,
-						statusAyah: dataSiswaSiswi.UserDetail.statusAyah ? status_ayah.label : null,
-						nikAyah: dataSiswaSiswi.UserDetail.nikAyah,
-						pendidikanAyah: dataSiswaSiswi.UserDetail.pendidikanAyah ? pendidikan_ayah.label : null,
-						pekerjaanAyah: dataSiswaSiswi.UserDetail.pekerjaanAyah ? pekerjaan_ayah.label : null,
-						telpAyah: dataSiswaSiswi.UserDetail.telpAyah,
-					// },
-					// dataIbu: {
-						namaIbu: dataSiswaSiswi.UserDetail.namaIbu,
-						tahunIbu: dataSiswaSiswi.UserDetail.tahunIbu,
-						statusIbu: dataSiswaSiswi.UserDetail.statusIbu ? status_ibu.label : null,
-						nikIbu: dataSiswaSiswi.UserDetail.nikIbu,
-						pendidikanIbu: dataSiswaSiswi.UserDetail.pendidikanIbu ? pendidikan_ibu.label : null,
-						pekerjaanIbu: dataSiswaSiswi.UserDetail.pekerjaanIbu ? pekerjaan_ibu.label : null,
-						telpIbu: dataSiswaSiswi.UserDetail.telpIbu,
-					// },
-					// dataWali: {
-						namaWali: dataSiswaSiswi.UserDetail.namaWali,
-						tahunWali: dataSiswaSiswi.UserDetail.tahunWali,
-						nikWali: dataSiswaSiswi.UserDetail.nikWali,
-						pendidikanWali: dataSiswaSiswi.UserDetail.pendidikanWali ? pendidikan_wali.label : null,
-						pekerjaanWali: dataSiswaSiswi.UserDetail.pekerjaanWali ? pekerjaan_wali.label : null,
-						telpWali: dataSiswaSiswi.UserDetail.telpWali,
-				// 	}
-				// },
-				penghasilan: dataSiswaSiswi.UserDetail.penghasilan ? penghasilan.label : null,
-				// dataAlamatOrangtua: {
-					telp: dataSiswaSiswi.UserDetail.telp,
-					alamat: dataSiswaSiswi.UserDetail.alamat,
-					provinsi: dataSiswaSiswi.UserDetail.provinsi ? uppercaseLetterFirst(provinsi.nama) : null,
-					kabKota: dataSiswaSiswi.UserDetail.kabKota ? uppercaseLetterFirst(kabkota.nama) : null,
-					kecamatan: dataSiswaSiswi.UserDetail.kecamatan ? uppercaseLetterFirst(kecamatan.nama) : null,
-					kelurahan: dataSiswaSiswi.UserDetail.kelurahan ? uppercaseLetterFirst(kelurahan.nama) : null,
-					kodePos: dataSiswaSiswi.UserDetail.kodePos,
-				// },
-				kelas: dataSiswaSiswi.UserDetail.kelas,
-				// dataLainnya: {
-					statusTempatTinggal: dataSiswaSiswi.UserDetail.statusTempatTinggal ? status_tempat_tinggal.label : null,
-					jarakRumah: dataSiswaSiswi.UserDetail.jarakRumah ? jarak_rumah.label : null,
-					transportasi: dataSiswaSiswi.UserDetail.transportasi ? transportasi.label : null,
-				// },
-				fotoProfil: dataSiswaSiswi.UserDetail.fotoProfil,
-				// berkas: {
-					fcIjazah: dataSiswaSiswi.UserDetail.fcIjazah,
-					fcSKHUN: dataSiswaSiswi.UserDetail.fcSKHUN,
-					fcKK: dataSiswaSiswi.UserDetail.fcKK,
-					fcKTPOrtu: dataSiswaSiswi.UserDetail.fcKTPOrtu,
-					fcAktaLahir: dataSiswaSiswi.UserDetail.fcAktaLahir,
-					fcSKL: dataSiswaSiswi.UserDetail.fcSKL,
-				// },
-				validasiAkun: dataSiswaSiswi.validasiAkun,
-				statusAktif: dataSiswaSiswi.statusAktif,
-			}
-			// return OK(res, hasil)
-			ejs.renderFile(path.join(__dirname, "../../src/views/viewSiswa.ejs"), { dataSiswa: hasil }, (err, data) => {
-				if (err) {
-					console.log(err);
-				} else {
-					// console.log(data)
-					let options = {
-						format: "A4",
-						orientation: "portrait",
-						quality: "10000",
-						border: {
-							top: "2cm",
-							right: "2.2cm",
-							bottom: "2cm",
-							left: "2.2cm"
-						},
-						// header: {
-						// 	height: "12mm",
-						// },
-						// footer: {
-						// 	height: "15mm",
-						// },
-						httpHeaders: {
-							"Content-type": "application/pdf",
-						},
-						type: "pdf",
-					};
-					pdf.create(data, options).toStream(function(err, stream){
-						stream.pipe(res);
-					});
+			let kumpul = []
+			await Promise.all(dataMengajar.map(async (val) => {
+				await Promise.all(kelas.map(val2 => {
+					kumpul.push({
+						idUser: body.idUser,
+						mapel: val,
+						kelas: val2
+					})
+				}))
+			}))
+			
+			await models.JadwalMengajar.destroy({ where: { idUser: body.idUser } });
+
+			let kumpulan = []
+			await Promise.all(kumpul.map(async val => {
+				const dataJadwal = await models.JadwalMengajar.findOne({ 
+					where: { idUser: body.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
+					attributes: ['idUser', 'mapel', 'kelas', 'jumlahTugas', 'status']
+				});
+				if(!dataJadwal){
+					return kumpulan.push({
+            idUser: body.idUser,
+            mapel: val.mapel,
+            kelas: val.kelas,
+            jumlahTugas: 10,
+            status: true
+        	})
 				}
-			});
+				kumpulan.push(dataJadwal)
+			}))
+
+			await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']))
+			return OK(res, kumpulan)
+			// return OK(res, { idUser: body.idUser, mapel, kelas })
 		} catch (err) {
 			return NOT_FOUND(res, err.message)
 		}
@@ -2016,8 +2323,11 @@ module.exports = {
   getSiswaSiswi,
   getSiswaSiswibyUid,
   postSiswaSiswi,
+  getPenilaian,
+  postPenilaian,
   downloadTemplate,
   importExcel,
+  exportExcel,
   pdfCreate,
   testing,
 }
