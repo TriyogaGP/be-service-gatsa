@@ -1,5 +1,5 @@
 const { response, OK, NOT_FOUND, NO_CONTENT } = require('../utils/response.utils');
-const { encrypt, decrypt, makeRandom, dateconvert, convertDate, convertDate3, createKSUID, uppercaseLetterFirst, buildMysqlResponseWithPagination } = require('../utils/helper.utils');
+const { encrypt, decrypt, makeRandom, dateconvert, convertDate, convertDate3, createKSUID, uppercaseLetterFirst, buildMysqlResponseWithPagination, paginate } = require('../utils/helper.utils');
 const {
 	_allOption,
 	_agamaOption,
@@ -1172,6 +1172,185 @@ function postSiswaSiswi (models) {
   }  
 }
 
+function getWaliKelas (models) {
+  return async (req, res, next) => {
+		let { page, kelas, roleID } = req.query
+    let where = {}
+    try {
+			if(roleID === '1' || roleID === '2' || roleID === '3'){
+
+				let whereUserDetail = {}
+				let wherePlus = {}
+				if(kelas){
+					whereUserDetail.kelas = kelas
+					wherePlus.mutasiAkun = false
+				}
+				where = { consumerType: 4, ...wherePlus }
+				const dataSiswaSiswi = await models.User.findAll({
+					where,
+					attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'updatedAt', 'deletedAt'] },
+					include: [
+						{ 
+							model: models.UserDetail,
+							where: whereUserDetail
+						},
+					],
+					order: [
+						['createdAt', 'DESC'],
+					],
+				});
+
+				const wali_kelas = await models.User.findOne({
+					include: [
+						{ 
+							model: models.UserDetail,
+							where: { waliKelas: kelas }
+						},
+					],
+				});
+
+				const getResult = await Promise.all(dataSiswaSiswi.map(async val => {
+					const dataNilai = await models.Nilai.findAll({
+						where: { idUser: val.idUser },
+						attributes: ['mapel', 'dataNilai']
+					})
+
+					let resultNilai = await Promise.all(dataNilai.map(async str => {
+						const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: kelas, mapel: str.mapel, status: true } });
+						let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
+						let kkm = dataJadwal ? dataJadwal.kkm : 0
+						let dataStruktural = null
+						if(dataJadwal) {
+							dataStruktural = await models.User.findOne({ where: { idUser: dataJadwal.idUser } });
+						}
+						let hasil = JSON.parse(str.dataNilai)
+						let resdata = hasil[0].nilai
+						let totalNilaiTugas = Number(resdata.tugas1) + Number(resdata.tugas2) + Number(resdata.tugas3) + Number(resdata.tugas4) + Number(resdata.tugas5) + Number(resdata.tugas6) + Number(resdata.tugas7) + Number(resdata.tugas8) + Number(resdata.tugas9) + Number(resdata.tugas10)
+						let rataRataTugas = totalNilaiTugas === 0 ? 0 : totalNilaiTugas / Number(jumlahTugas)
+						let rataRataNilai = (Number(rataRataTugas) + Number(resdata.uts) + Number(resdata.uas)) / 3
+						let hurufNilai = rataRataNilai <= 50 ? 'E' : rataRataNilai <= 65 ? 'D' : rataRataNilai <= 75 ? 'C' : rataRataNilai <= 85 ? 'B' : 'A'
+						return {
+							mapel: str.mapel,
+							nilai: rataRataNilai != 0 ? Math.ceil(rataRataNilai) : 0,
+							namaGuru: dataStruktural ? dataStruktural.nama : '-',
+							kkm,
+							hurufNilai,
+						}
+					}))
+
+					return {
+						idUser: val.idUser,
+						nomorInduk: val.UserDetail.nomorInduk,
+						nama: val.nama,
+						waliKelas: wali_kelas ? wali_kelas.nama : '',
+						dataNilai: resultNilai
+					}
+				}))
+				const totalPages = Math.ceil(getResult.length / 1)
+
+				return OK(res, {
+					records: paginate(getResult, 1, Number(page)),
+					pageSummary: {
+						page: Number(page),
+						limit: 1,
+						total: getResult.length,
+						totalPages,
+					}
+				});
+			}
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getJadwalMengajar (models) {
+  return async (req, res, next) => {
+		let { page, limit = 20, keyword } = req.query
+    try {
+			const dataJadwalMengajar = await models.JadwalMengajar.findAll({
+				where: { status: true },
+				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'updatedAt', 'deletedAt'] },
+			});
+
+			let kelompokByID = _.groupBy(dataJadwalMengajar, 'idUser')
+			let kumpul = await Promise.all(Object.entries(kelompokByID).map(val => {
+				let key = val[0]
+				let data = val[1]
+				let resdata = []
+				data.map(str => {
+					resdata.push({
+						idJadwalMengajar: str.idJadwalMengajar,
+						mapel: str.mapel,
+						kelas: str.kelas,
+						jumlahTugas: str.jumlahTugas,
+						kkm: str.kkm,
+						status: str.status,
+					})
+				})
+				return { idUser: key, resdata }
+			}))
+
+			let result = []
+			await Promise.all(kumpul.map(async val => {
+				const dataUser = await models.User.findOne({ 
+					where: { idUser: val.idUser },
+					include: [
+						{ 
+							model: models.UserDetail,
+						},
+					],
+				})
+				let dataMapel = _.groupBy(val.resdata, 'mapel')
+				let hasil = await Promise.all(Object.entries(dataMapel).map(async val => {
+					let key = val[0]
+					let data = val[1]
+					let resdata = []
+					data.map(str => {
+						resdata.push({
+							idJadwalMengajar: str.idJadwalMengajar,
+							kelas: str.kelas,
+							jumlahTugas: str.jumlahTugas,
+							kkm: str.kkm,
+							status: str.status,
+						})
+					})
+					return { mapel: key, resdata: _.orderBy(resdata, 'kelas', 'asc') }
+				}))
+				result.push({
+					idUser: dataUser.idUser,
+					nama: dataUser.nama,
+					nomorInduk: dataUser.UserDetail.nomorInduk,
+					dataJadwalMengajar: hasil,
+				})
+			}))
+
+			if(keyword) {
+  			let searchRegExp = new RegExp(keyword , 'i');
+				result = result.filter(val => {
+					return searchRegExp.test(val.nama)
+				})
+			}
+
+			let records = _.orderBy(result, ['nomorInduk', 'nama'], ['asc', 'asc'])
+
+			const totalPages = Math.ceil(records.length / Number(limit))
+
+			return OK(res, {
+				records: paginate(records, Number(limit), Number(page)),
+				pageSummary: {
+					page: Number(page),
+					limit: Number(limit),
+					total: records.length,
+					totalPages,
+				}
+			});
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
 function getPenilaian (models) {
 	return async (req, res, next) => {
 		let { idUser, kelas, mapel } = req.query
@@ -2323,6 +2502,8 @@ module.exports = {
   getSiswaSiswi,
   getSiswaSiswibyUid,
   postSiswaSiswi,
+  getWaliKelas,
+  getJadwalMengajar,
   getPenilaian,
   postPenilaian,
   downloadTemplate,

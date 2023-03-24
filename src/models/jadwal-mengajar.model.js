@@ -60,6 +60,13 @@ module.exports = {
         },
       );
 
+    JadwalMengajar.associate = models => {
+      models.JadwalMengajar.belongsTo(models.User, {
+        foreignKey: 'idUser',
+        constraint: false
+      });
+    }
+
     return JadwalMengajar;
   },
 };

@@ -66,7 +66,9 @@ function login (models) {
 					expiresIn: '1d'
 			});
 
-			return OK(res, await _buildResponseUser(data, refreshToken, accessToken))
+			let result = await _buildResponseUser(data, refreshToken, accessToken)
+
+			return OK(res, result, `Selamat Datang ${result.nama} sebagai ${result.namaRole}`)
     } catch (err) {
 			return NOT_FOUND(res, err.message)
     }

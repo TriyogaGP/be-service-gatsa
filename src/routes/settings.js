@@ -36,8 +36,8 @@ const { verifyToken } = require('../middleware/VerifyToken');
 module.exports = models => {
   const route = Router();
   route.route('/getUID').get(getUID())
-  route.route('/encryptPass').get(getEncrypt())
-  route.route('/decryptPass').get(getDecrypt())
+  route.route('/encryptPass').get(verifyToken, getEncrypt())
+  route.route('/decryptPass').get(verifyToken, getDecrypt())
   route.route('/optionsMenu').get(optionsMenu(models))
   route.route('/optionsAgama').get(optionsAgama(models))
   route.route('/optionsHobi').get(optionsHobi(models))
@@ -58,16 +58,16 @@ module.exports = models => {
   route.route('/updateFile').post(uploadFile, updateFile(models))
 
   route.route('/Menu')
-    .get(getMenu(models))
+    .get(verifyToken, getMenu(models))
     .post(crudMenu(models))
   route.route('/SequenceMenu')
-    .get(getSequenceMenu(models))
+    .get(verifyToken, getSequenceMenu(models))
     .post(crudSequenceMenu(models))
   route.route('/Role')
-    .get(getRole(models))
+    .get(verifyToken, getRole(models))
     .post(crudRole(models))
   route.route('/RoleMenu')
-    .get(getRoleMenu(models))
+    .get(verifyToken, getRoleMenu(models))
     .post(crudRoleMenu(models))
   
   return route;

@@ -10,6 +10,8 @@ const {
   getSiswaSiswi,
   getSiswaSiswibyUid,
   postSiswaSiswi,
+  getWaliKelas,
+  getJadwalMengajar,
   getPenilaian,
   postPenilaian,
   downloadTemplate,
@@ -40,6 +42,10 @@ module.exports = models => {
     .post(postSiswaSiswi(models))
   route.route('/siswasiswi/:uid')
     .get(getSiswaSiswibyUid(models))
+  route.route('/walikelas')
+    .get(getWaliKelas(models))
+  route.route('/jadwal')
+    .get(getJadwalMengajar(models))
   route.route('/nilai')
     .get(getPenilaian(models))
     .post(postPenilaian(models))

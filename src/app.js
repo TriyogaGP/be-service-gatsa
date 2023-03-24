@@ -49,8 +49,8 @@ try {
   //api
   app.use('/api/v1/auth', auth(models));
   app.use('/api/v1/settings', settings(models));
-  app.use('/api/v1/user', user(models));
-  app.use('/api/v1/kelas', kelas(models));
+  app.use('/api/v1/user', verifyToken, user(models));
+  app.use('/api/v1/kelas', verifyToken, kelas(models));
   
   app.use(swagger());
 
