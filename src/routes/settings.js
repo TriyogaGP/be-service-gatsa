@@ -38,7 +38,7 @@ module.exports = models => {
   route.route('/getUID').get(getUID())
   route.route('/encryptPass').get(verifyToken, getEncrypt())
   route.route('/decryptPass').get(verifyToken, getDecrypt())
-  route.route('/optionsMenu').get(optionsMenu(models))
+  route.route('/optionsMenu').get(verifyToken, optionsMenu(models))
   route.route('/optionsAgama').get(optionsAgama(models))
   route.route('/optionsHobi').get(optionsHobi(models))
   route.route('/optionsCitaCita').get(optionsCitaCita(models))
