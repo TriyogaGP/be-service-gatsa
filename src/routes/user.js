@@ -12,6 +12,7 @@ const {
   postSiswaSiswi,
   getWaliKelas,
   getJadwalMengajar,
+  postJadwalMengajar,
   getPenilaian,
   postPenilaian,
   downloadTemplate,
@@ -46,6 +47,7 @@ module.exports = models => {
     .get(getWaliKelas(models))
   route.route('/jadwal')
     .get(getJadwalMengajar(models))
+    .post(postJadwalMengajar(models))
   route.route('/nilai')
     .get(getPenilaian(models))
     .post(postPenilaian(models))

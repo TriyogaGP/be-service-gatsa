@@ -32,6 +32,7 @@ const nodeGeocoder = require('node-geocoder');
 const readXlsxFile = require('read-excel-file/node');
 const { sequelizeInstance } = require('../configs/db.config');
 const dotenv = require('dotenv');
+const { group } = require('console');
 dotenv.config();
 const BASE_URL = process.env.BASE_URL
 
@@ -572,13 +573,11 @@ function postStruktural (models) {
 					}))
 				}))
 				
-				await models.JadwalMengajar.destroy({ where: { idUser: user.idUser } });
-
 				let kumpulan = []
 				await Promise.all(kumpul.map(async val => {
 					const dataJadwal = await models.JadwalMengajar.findOne({ 
 						where: { idUser: user.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
-						attributes: ['idUser', 'mapel', 'kelas', 'jumlahTugas', 'status']
+						attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'jumlahTugas', 'kkm', 'status']
 					});
 					if(!dataJadwal){
 						return kumpulan.push({
@@ -587,13 +586,24 @@ function postStruktural (models) {
 							mapel: val.mapel,
 							kelas: val.kelas,
 							jumlahTugas: 10,
+							kkm: 0,
 							status: true
 						})
+					}else{
+						kumpulan.push({
+							idJadwalMengajar: dataJadwal.idJadwalMengajar,
+							idUser: dataJadwal.idUser,
+							mapel: dataJadwal.mapel,
+							kelas: dataJadwal.kelas,
+							jumlahTugas: dataJadwal.jumlahTugas,
+							kkm: dataJadwal.kkm,
+							status: dataJadwal.status
+						})
 					}
-					kumpulan.push(dataJadwal)
 				}))
 
 				await sequelizeInstance.transaction(async trx => {
+					await models.JadwalMengajar.destroy({ where: { idUser: user.idUser } }, { transaction: trx });
 					await models.User.update(kirimdataUser, { where: { idUser: user.idUser } }, { transaction: trx })
 					await models.UserDetail.update(kirimdataUserDetail, { where: { idUser: user.idUser } }, { transaction: trx })
 					await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']), { transaction: trx })
@@ -1349,6 +1359,68 @@ function getJadwalMengajar (models) {
 			return NOT_FOUND(res, err.message)
     }
   }  
+}
+
+function postJadwalMengajar (models) {
+	return async (req, res, next) => {
+		let body = req.body
+		try {
+			let kumpul = []
+			await Promise.all(body.mapel.map(async (val) => {
+				await Promise.all(body.kelas.map(val2 => {
+					kumpul.push({
+						idUser: body.idUser,
+						mapel: val,
+						kelas: val2
+					})
+				}))
+			}))
+
+			let kumpulan = []
+			await Promise.all(kumpul.map(async val => {
+				const dataJadwal = await models.JadwalMengajar.findOne({ 
+					where: { idUser: body.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
+					attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'jumlahTugas', 'kkm', 'status']
+				});
+				if(!dataJadwal){
+					return kumpulan.push({
+						idJadwalMengajar: makeRandom(10),
+            idUser: body.idUser,
+            mapel: val.mapel,
+            kelas: val.kelas,
+            jumlahTugas: 10,
+            kkm: 0,
+            status: true
+        	})
+				}else{
+					kumpulan.push({
+						idJadwalMengajar: dataJadwal.idJadwalMengajar,
+            idUser: dataJadwal.idUser,
+            mapel: dataJadwal.mapel,
+            kelas: dataJadwal.kelas,
+            jumlahTugas: dataJadwal.jumlahTugas,
+            kkm: dataJadwal.kkm,
+            status: dataJadwal.status
+        	})
+				}
+			}))
+
+			const mengajar = await models.Mengajar.findAll({ where: { label: body.mapel }}); 
+			const dataMengajar = await mengajar.map(str => str.kode)
+
+			let kirimdataUserDetail = {
+				mengajarBidang: dataMengajar.join(', '),
+			}
+			await sequelizeInstance.transaction(async trx => {
+				await models.JadwalMengajar.destroy({ where: { idUser: body.idUser } }, { transaction: trx });
+				await models.UserDetail.update(kirimdataUserDetail, { where: { idUser: body.idUser } }, { transaction: trx })
+				await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']), { transaction: trx })
+			})
+			return OK(res, kumpulan)
+		} catch (err) {
+			return NOT_FOUND(res, err.message)
+		}
+	}
 }
 
 function getPenilaian (models) {
@@ -2462,8 +2534,6 @@ function testing (models) {
 					})
 				}))
 			}))
-			
-			await models.JadwalMengajar.destroy({ where: { idUser: body.idUser } });
 
 			let kumpulan = []
 			await Promise.all(kumpul.map(async val => {
@@ -2504,6 +2574,7 @@ module.exports = {
   postSiswaSiswi,
   getWaliKelas,
   getJadwalMengajar,
+  postJadwalMengajar,
   getPenilaian,
   postPenilaian,
   downloadTemplate,
