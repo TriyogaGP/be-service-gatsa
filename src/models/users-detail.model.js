@@ -306,6 +306,11 @@ const UserDetailScheme = Sequelize => {
       allowNull: true,
       field: 'kelas'
     },
+    peringkat: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: 'peringkat'
+    },
     statusTempatTinggal: {
       type: DataTypes.INTEGER,
       allowNull: true,

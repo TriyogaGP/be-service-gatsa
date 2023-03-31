@@ -415,6 +415,60 @@ function crudRoleMenu (models) {
   }  
 }
 
+function getCMSSetting (models) {
+  return async (req, res, next) => {
+    try {
+			const dataCMS = await models.CMSSetting.findAll();
+
+			const data = {}
+			dataCMS.forEach(str => {
+				let eva = JSON.parse(str.setting)
+				if(eva.label){
+					data[str.kode] = eva
+				}else{
+					data[str.kode] = eva.value
+				}
+			})
+			return OK(res, data);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function crudCMSSetting (models) {
+  return async (req, res, next) => {
+		let body = { ...req.body }
+    try {
+			const mappingData = []
+			Object.entries(body).forEach(str => {
+				if(str[1].label){
+					mappingData.push({
+						kode: str[0],
+						setting: str[1],
+					})
+				}else{
+					mappingData.push({
+						kode: str[0],
+						setting: { value: str[1] },
+					})
+				}
+			})
+
+			await [null, ...mappingData].reduce(async (memo, data) => {
+				await memo;
+				await models.CMSSetting.upsert(
+					{ setting : JSON.stringify(data.setting), kode: data.kode },
+					{ where: { kode: data.kode } }
+				)
+			})
+			return OK(res, mappingData);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
 function optionsMenu (models) {
   return async (req, res, next) => {
     let { id_role } = req.query
@@ -679,6 +733,8 @@ module.exports = {
   crudRole,
   getRoleMenu,
   crudRoleMenu,
+  getCMSSetting,
+  crudCMSSetting,
   optionsMenu,
   optionsAgama,
   optionsHobi,

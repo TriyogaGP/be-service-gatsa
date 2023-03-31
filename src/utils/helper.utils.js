@@ -176,6 +176,69 @@ function uppercaseLetterFirst(textInput) {
 	return finalText;
 }
 
+function uppercaseLetterFirst2(textInput) {
+	let regex = /[\!\@\#\$\%\^\&\*\)\(\+\=\.\<\>\{\}\[\]\:\;\'\"\|\~\`\_\-]/g
+	let cek = regex.test(textInput)
+	textInput = textInput.toLowerCase();
+	var stringArray = ''
+	if(cek){
+		stringArray = textInput.split(". ");
+	}else{
+		stringArray = textInput.split(/\b(\s)/);
+	}
+	for (var i = 0; i < stringArray.length; i++) {
+		stringArray[i] =
+			stringArray[i].charAt(0).toUpperCase() +
+			stringArray[i].substring(1);
+	}
+	var finalText = cek ? stringArray.join(". ") : stringArray.join("");
+	return finalText;
+}
+
+function pembilang(nilai){
+	nilai = Math.abs(nilai);
+	var simpanNilaiBagi=0;
+	var huruf = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
+	var temp="";
+	if (nilai < 12) {
+		temp = " "+huruf[nilai];
+	}
+	else if (nilai <20) {
+		temp = pembilang(nilai - 10) + " Belas";
+	}
+	else if (nilai < 100) {
+		simpanNilaiBagi = Math.floor(nilai/10);
+		temp = pembilang(simpanNilaiBagi)+" Puluh"+ pembilang(nilai % 10);
+	}
+	else if (nilai < 200) {
+		temp = " Seratus" + pembilang(nilai - 100);
+	}
+	else if (nilai < 1000) {
+		simpanNilaiBagi = Math.floor(nilai/100);
+		temp = pembilang(simpanNilaiBagi) + " Ratus" + pembilang(nilai % 100);
+	}
+	else if (nilai < 2000) {
+		temp = " Seribu" + pembilang(nilai - 1000);
+	}
+	else if (nilai < 1000000) {
+		simpanNilaiBagi = Math.floor(nilai/1000);
+		temp = pembilang(simpanNilaiBagi) + " Ribu" + pembilang(nilai % 1000);
+	} 
+	else if (nilai < 1000000000) {
+		simpanNilaiBagi = Math.floor(nilai/1000000);
+		temp =pembilang(simpanNilaiBagi) + " Juta" + pembilang(nilai % 1000000);
+	} 
+	else if (nilai < 1000000000000) {
+		simpanNilaiBagi = Math.floor(nilai/1000000000);
+		temp = pembilang(simpanNilaiBagi) + " Miliar" + pembilang(nilai % 1000000000);
+	} 
+	else if (nilai < 1000000000000000) {
+		simpanNilaiBagi = Math.floor(nilai/1000000000000);
+		temp = pembilang(nilai/1000000000000) + " Triliun" + pembilang(nilai % 1000000000000);
+	}
+	return temp;
+}
+
 function buildMysqlResponseWithPagination(records, params) {
 	const { limit = 25, page = 1, total } = params;
 	const totalPages = Math.ceil(total / limit);
@@ -210,6 +273,8 @@ module.exports = {
 	convertDateGabung,
 	bulanValues,
 	uppercaseLetterFirst,
+	uppercaseLetterFirst2,
+	pembilang,
 	buildMysqlResponseWithPagination,
 	paginate,
 }

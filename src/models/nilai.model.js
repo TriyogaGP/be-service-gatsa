@@ -26,6 +26,11 @@ const NilaiScheme = Sequelize => {
       allowNull: false,
       field: 'data_nilai',
     },
+    dataKehadiran: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+      field: 'data_kehadiran',
+    },
   };
 };
 

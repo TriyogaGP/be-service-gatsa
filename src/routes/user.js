@@ -1,5 +1,4 @@
 const { Router } = require('express');
-const {body, checkSchema, validationResult} = require('express-validator');
 const {
   getAdmin,
   getAdminbyUid,
@@ -11,6 +10,7 @@ const {
   getSiswaSiswibyUid,
   postSiswaSiswi,
   getWaliKelas,
+  updatePeringkat,
   getJadwalMengajar,
   postJadwalMengajar,
   getPenilaian,
@@ -19,6 +19,7 @@ const {
   importExcel,
   exportExcel,
   pdfCreate,
+  pdfCreateRaport,
   testing,
 } = require('../controllers/user.controller')
 const { uploadFile } = require('../middleware/uploadFile')
@@ -45,6 +46,8 @@ module.exports = models => {
     .get(getSiswaSiswibyUid(models))
   route.route('/walikelas')
     .get(getWaliKelas(models))
+  route.route('/update-peringkat')
+    .get(updatePeringkat(models))
   route.route('/jadwal')
     .get(getJadwalMengajar(models))
     .post(postJadwalMengajar(models))
@@ -59,6 +62,8 @@ module.exports = models => {
     .get(exportExcel(models))
   route.route('/pdfcreate/:uid')
     .get(pdfCreate(models))
+  route.route('/pdfcreate-raport/:uid')
+    .get(pdfCreateRaport(models))
 
   route.route('/testing')
     .post(testing(models))

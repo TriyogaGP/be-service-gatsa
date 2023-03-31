@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>View Raport Siswa - Siswi (<%= dataSiswa.nama %>)</title>
+	<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
+</head>
+<body>
+	<style>
+		.judul{
+			font-weight: bold; 
+			font-size: 18px; 
+			text-align: left;
+			text-decoration: underline;
+			padding-bottom: 10px;
+		}
+		.isi{ 
+			font-size: 12px; 
+			text-align: left;
+		}
+		.container{
+			width: 100%;
+			height: 100%;
+		}
+		hr{
+			border: 2px double #000;
+		}
+		.draft {
+			background-image: url('http://localhost:5100/bahan/draft.png');
+			background-repeat: repeat;
+			background-attachment: fixed;
+			/* opacity: 0.4;
+			z-index: 100; */
+			background-size: 100%;
+		}
+		.namasekolah{
+			text-align: center; 
+			font-weight: bold; 
+			font-size: 18px; 
+			vertical-align: top;
+			height: 10px;
+		}
+		.alamat{
+			text-align: center; 
+			font-size: 12px; 
+			vertical-align: top;
+			height: 10px;
+		}
+		.kepala{
+			font-size: 12pt;
+			text-align: center;
+			font-weight: bold;
+		}
+		.headerTable{ 
+			font-size: 12px; 
+			text-align: center;
+			font-weight: bold;
+		}
+		.contentTable{ 
+			font-size: 12px; 
+		}
+		.isiTable1{
+			text-align: left;
+			padding-left: 5px; 
+		}
+		.isiTable2{
+			text-align: center;
+		}
+	</style>
+	<div class="container">
+		<% if(cmsSetup.pdfraport.value === 1) { %> 
+		<div class="draft">
+		<% }else{ %>
+		<div>
+		<% } %>
+			<table border="0" width="100%" cellspacing="0" cellpadding="0">
+				<tr>
+					<td width="25%" style="text-align: center;">
+						<img
+							src="http://localhost:5100/bahan/gatsa.png"
+							alt="Gatsa logo"
+							width="80px"
+							height="80px"
+							style="display: block;"
+						/>
+					</td>
+					<td>
+						<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
+						<p class="alamat"><%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
+					</td>
+				</tr>
+				<tr>
+					<td colspan="2"><hr></td>
+				</tr>
+			</table>
+			<p class="kepala">
+				PENILAIAN AKHIR SEMESTER (PAS)<br>
+				TAHUN PELAJARAN <%= cmsSetup.tahunpelajaran.label %>
+			</p>
+			<table border="0" width="100%" cellspacing="0" cellpadding="0">
+				<tr>
+					<td width="20%" style="text-align: left; font-weight: bold;">Nomor Induk</td>
+					<td width="20%">: <%= dataSiswa.nomorInduk %></td>
+					<td width="20%">&nbsp;</td>
+					<td width="20%" style="text-align: left; font-weight: bold;">Kelas</td>
+					<td width="20%">: <%= dataSiswa.kelas %></td>
+				</tr>
+				<tr>
+					<td width="20%" style="text-align: left; font-weight: bold;">Nama Siswa/i</td>
+					<td width="20%">: <%= dataSiswa.nama %></td>
+					<td width="20%">&nbsp;</td>
+					<td width="20%" style="text-align: left; font-weight: bold;">Tahun Pelajaran</td>
+					<td width="20%">: <%= cmsSetup.tahunpelajaran.label %></td>
+				</tr>
+			</table>
+			<table border="1" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 10px; border: 1px solid #000 ;">
+				<tr class="headerTable">
+					<td>MATA PELAJARAN</td>
+					<td>KKM</td>
+					<td>NILAI ANGKA</td>
+					<td>NILAI HURUF</td>
+					<td>KETERANGAN</td>
+					<td>KOMPETEN / TIDAK KOMPETEN</td>
+				</tr>
+				<% for(var i=0; i < dataSiswa.dataNilai.length; i++) { %>
+					<tr class="contentTable">
+						<td class="isiTable1"><%= dataSiswa.dataNilai[i].mapel %></td>
+						<td class="isiTable2"><%= dataSiswa.dataNilai[i].kkm %></td>
+						<td class="isiTable2"><%= dataSiswa.dataNilai[i].nilai %></td>
+						<td class="isiTable2"><%= dataSiswa.dataNilai[i].hurufNilai %></td>
+						<td class="isiTable1"><%= dataSiswa.dataNilai[i].pembilang %></td>
+						<td class="isiTable2"><% if(dataSiswa.dataNilai[i].nilai > dataSiswa.dataNilai[i].kkm) { %> KOMPETEN <% }else{ %> TIDAK KOMPETEN <% } %> </td>
+					</tr>
+				<% } %>
+				<tr class="contentTable">
+					<td style="text-align: right; padding-right: 5px; font-weight: bold;" colspan="2">RATA - RATA NILAI</td>
+					<td class="isiTable2"><b><%= dataSiswa.hasilAkhir %></b></td>
+					<td class="isiTable2"><%= dataSiswa.hurufNilai %></td>
+					<td class="isiTable1" colspan="2"><%= dataSiswa.pembilang %></td>
+				</tr>
+				<tr class="contentTable">
+					<td style="text-align: right; padding-right: 5px; font-weight: bold;" colspan="2">PERINGKAT</td>
+					<td class="isiTable1" colspan="4"><b><%= dataSiswa.peringkat %></b> dari total <b><%= dataSiswa.jumlahSiswa %> Siswa/i</b></td>
+				</tr>
+			</table>
+			<table border="1" width="300px" cellspacing="0" cellpadding="0" style="margin-top: 20px; border: 1px solid #000 ;">
+				<tr class="headerTable">
+					<td>KEHADIRAN</td>
+					<td>TOTAL</td>
+				</tr>
+				<tr class="contentTable">
+					<td class="isiTable1">Sakit</td>
+					<td class="isiTable2"><%= dataSiswa.kehadiran.sakit %></td>
+				</tr>
+				<tr class="contentTable">
+					<td class="isiTable1">Ijin</td>
+					<td class="isiTable2"><%= dataSiswa.kehadiran.ijin %></td>
+				</tr>
+				<tr class="contentTable">
+					<td class="isiTable1">Tanpa Keterangan</td>
+					<td class="isiTable2"><%= dataSiswa.kehadiran.alfa %></td>
+				</tr>
+			</table>
+			<br/><br/><br/><br/><br/>
+			<br/><br/><br/><br/><br/>
+		</div>
+	</div>
+</body>
+</html>

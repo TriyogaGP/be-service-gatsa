@@ -12,6 +12,8 @@ const {
   crudRole,
   getRoleMenu,
   crudRoleMenu,
+  getCMSSetting,
+  crudCMSSetting,
   optionsMenu,
   optionsAgama,
   optionsHobi,
@@ -69,6 +71,9 @@ module.exports = models => {
   route.route('/RoleMenu')
     .get(verifyToken, getRoleMenu(models))
     .post(crudRoleMenu(models))
+  route.route('/cmssetting')
+    .get(getCMSSetting(models))
+    .put(crudCMSSetting(models))
   
   return route;
 }

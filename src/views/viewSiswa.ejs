@@ -4,7 +4,7 @@
 	<meta charset="UTF-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Tes</title>
+	<title>View Siswa - Siswi (<%= dataSiswa.nama %>)</title>
 	<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
 </head>
 <body>
@@ -75,8 +75,8 @@
 						/>
 					</td>
 					<td>
-						<p class="namasekolah">MTsS SIROJUL ATHFAL</p>
-						<p class="alamat">Jl. Raya pemda Karadenan RT. 004/003 Kec. Cibinong Kab. Bogor Phone (0251) 8-654-235</p>
+						<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
+						<p class="alamat"><%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
 					</td>
 				</tr>
 				<tr>

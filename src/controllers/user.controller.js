@@ -1,5 +1,5 @@
 const { response, OK, NOT_FOUND, NO_CONTENT } = require('../utils/response.utils');
-const { encrypt, decrypt, makeRandom, dateconvert, convertDate, convertDate3, createKSUID, uppercaseLetterFirst, buildMysqlResponseWithPagination, paginate } = require('../utils/helper.utils');
+const { encrypt, decrypt, makeRandom, dateconvert, convertDate, convertDate3, createKSUID, pembilang, uppercaseLetterFirst2, buildMysqlResponseWithPagination, paginate } = require('../utils/helper.utils');
 const {
 	_allOption,
 	_agamaOption,
@@ -1050,6 +1050,15 @@ function postSiswaSiswi (models) {
 									uas: 0
 								}
 							}
+						]),
+						dataKehadiran: JSON.stringify([
+							{
+								kehadiran: {
+									sakit: 0,
+									alfa: 0,
+									ijin: 0,
+								}
+							}
 						])
 					})
 				})
@@ -1210,6 +1219,16 @@ function getWaliKelas (models) {
 					],
 				});
 
+				const jumlahSiswa = await models.User.count({
+					where: { mutasiAkun: false },
+					include: [
+						{ 
+							model: models.UserDetail,
+							where: { kelas: kelas },
+						},
+					],
+				});
+
 				const wali_kelas = await models.User.findOne({
 					include: [
 						{ 
@@ -1222,9 +1241,15 @@ function getWaliKelas (models) {
 				const getResult = await Promise.all(dataSiswaSiswi.map(async val => {
 					const dataNilai = await models.Nilai.findAll({
 						where: { idUser: val.idUser },
-						attributes: ['mapel', 'dataNilai']
+						attributes: ['mapel', 'dataNilai', 'dataKehadiran']
 					})
 
+					let hasilBayangan = 0
+					let kehadiranBayangan = {
+						sakit: 0,
+						alfa: 0,
+						ijin: 0,
+					}
 					let resultNilai = await Promise.all(dataNilai.map(async str => {
 						const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: kelas, mapel: str.mapel, status: true } });
 						let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
@@ -1234,28 +1259,44 @@ function getWaliKelas (models) {
 							dataStruktural = await models.User.findOne({ where: { idUser: dataJadwal.idUser } });
 						}
 						let hasil = JSON.parse(str.dataNilai)
+						let hasil2 = JSON.parse(str.dataKehadiran)
 						let resdata = hasil[0].nilai
 						let totalNilaiTugas = Number(resdata.tugas1) + Number(resdata.tugas2) + Number(resdata.tugas3) + Number(resdata.tugas4) + Number(resdata.tugas5) + Number(resdata.tugas6) + Number(resdata.tugas7) + Number(resdata.tugas8) + Number(resdata.tugas9) + Number(resdata.tugas10)
 						let rataRataTugas = totalNilaiTugas === 0 ? 0 : totalNilaiTugas / Number(jumlahTugas)
 						let rataRataNilai = (Number(rataRataTugas) + Number(resdata.uts) + Number(resdata.uas)) / 3
 						let hurufNilai = rataRataNilai <= 50 ? 'E' : rataRataNilai <= 65 ? 'D' : rataRataNilai <= 75 ? 'C' : rataRataNilai <= 85 ? 'B' : 'A'
+						let nilaiakhir = rataRataNilai != 0 ? Math.ceil(rataRataNilai) : 0 
+						hasilBayangan += nilaiakhir
+						kehadiranBayangan.sakit += hasil2[0].kehadiran.sakit
+						kehadiranBayangan.alfa += hasil2[0].kehadiran.alfa
+						kehadiranBayangan.ijin += hasil2[0].kehadiran.ijin
 						return {
 							mapel: str.mapel,
-							nilai: rataRataNilai != 0 ? Math.ceil(rataRataNilai) : 0,
+							nilai: nilaiakhir,
+							kehadiran: hasil2[0].kehadiran,
 							namaGuru: dataStruktural ? dataStruktural.nama : '-',
 							kkm,
 							hurufNilai,
 						}
 					}))
-
+					
+					let hasilAkhir = Math.ceil(hasilBayangan / dataNilai.length)
+					let hurufNilai = hasilAkhir <= 50 ? 'E' : hasilAkhir <= 65 ? 'D' : hasilAkhir <= 75 ? 'C' : hasilAkhir <= 85 ? 'B' : 'A'
 					return {
 						idUser: val.idUser,
 						nomorInduk: val.UserDetail.nomorInduk,
-						nama: val.nama,
+						nama: uppercaseLetterFirst2(val.nama),
+						peringkat: val.UserDetail.peringkat,
 						waliKelas: wali_kelas ? wali_kelas.nama : '',
-						dataNilai: resultNilai
+						jumlahSiswa,
+						hasilAkhir,
+						hurufNilai,
+						pembilang: hasilAkhir === 0 ? 'Nol' : pembilang(hasilAkhir),
+						dataNilai: resultNilai,
+						kehadiran: kehadiranBayangan,
 					}
 				}))
+
 				const totalPages = Math.ceil(getResult.length / 1)
 
 				return OK(res, {
@@ -1268,6 +1309,77 @@ function getWaliKelas (models) {
 					}
 				});
 			}
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function updatePeringkat (models) {
+  return async (req, res, next) => {
+		let { kelas } = req.query
+    let where = {}
+    try {
+			let kelasAktif = kelas.split(', ')
+			let result = []
+			for (let x = 0; x < kelasAktif.length; x++) {
+				let whereUserDetail = {}
+				let wherePlus = {}
+				if(kelas){
+					whereUserDetail.kelas = kelasAktif[x]
+					wherePlus.mutasiAkun = false
+				}
+				where = { consumerType: 4, ...wherePlus }
+				const dataSiswaSiswi = await models.User.findAll({
+					where,
+					attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'updatedAt', 'deletedAt'] },
+					include: [
+						{ 
+							model: models.UserDetail,
+							where: whereUserDetail
+						},
+					],
+					order: [
+						['createdAt', 'DESC'],
+					],
+				});
+	
+				const getResult = await Promise.all(dataSiswaSiswi.map(async val => {
+					const dataNilai = await models.Nilai.findAll({
+						where: { idUser: val.idUser },
+						attributes: ['mapel', 'dataNilai']
+					})
+	
+					let hasilBayangan = 0
+					await Promise.all(dataNilai.map(async str => {
+						const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: kelasAktif[x], mapel: str.mapel, status: true } });
+						let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
+						let hasil = JSON.parse(str.dataNilai)
+						let resdata = hasil[0].nilai
+						let totalNilaiTugas = Number(resdata.tugas1) + Number(resdata.tugas2) + Number(resdata.tugas3) + Number(resdata.tugas4) + Number(resdata.tugas5) + Number(resdata.tugas6) + Number(resdata.tugas7) + Number(resdata.tugas8) + Number(resdata.tugas9) + Number(resdata.tugas10)
+						let rataRataTugas = totalNilaiTugas === 0 ? 0 : totalNilaiTugas / Number(jumlahTugas)
+						let rataRataNilai = (Number(rataRataTugas) + Number(resdata.uts) + Number(resdata.uas)) / 3
+						let nilaiakhir = rataRataNilai != 0 ? Math.ceil(rataRataNilai) : 0 
+						hasilBayangan += nilaiakhir
+					}))
+	
+					let hasilAkhir = Math.ceil(hasilBayangan / dataNilai.length)
+					return {
+						idUser: val.idUser,
+						hasilAkhir,
+					}
+				}))
+				let peringkatSiswa = _.orderBy(getResult, 'hasilAkhir', 'desc')
+				result.push({ peringkatSiswa })
+			}
+
+			result.map(str => {
+				str.peringkatSiswa.map(async (val, i) => {
+					await models.UserDetail.update({ peringkat: i+1 }, { where: { idUser: val.idUser } })
+				})
+			})
+
+			return OK(res)
     } catch (err) {
 			return NOT_FOUND(res, err.message)
     }
@@ -1449,10 +1561,12 @@ function getPenilaian (models) {
 
 			let result = await Promise.all(dataNilai.map(async (str) => {
 				let hasil = JSON.parse(str.dataNilai)
+				let hasil2 = JSON.parse(str.dataKehadiran)
 				return {
 					idUser: str.idUser,
 					mapel: str.mapel,
 					nilai: hasil[0].nilai,
+					kehadiran: hasil2[0].kehadiran,
 				}
 			}))
 
@@ -1474,8 +1588,6 @@ function postPenilaian (models) {
 			let kirimdata
 			if(body.jenis === 'nilai'){
 				kirimdata = {
-					idUser: body.idUser,
-					mapel: body.mapel,
 					dataNilai: JSON.stringify(body.dataNilai),
 				}
 				await models.Nilai.update(kirimdata, { where: { idUser: body.idUser, mapel: body.mapel } })
@@ -1486,6 +1598,12 @@ function postPenilaian (models) {
 					kkm: body.kkm,
 				}
 				await models.JadwalMengajar.update(kirimdata, { where: { kelas: body.kelas, mapel: body.mapel } })
+			}
+			if(body.jenis === 'kehadiran'){
+				kirimdata = {
+					dataKehadiran: JSON.stringify(body.dataKehadiran),
+				}
+				await models.Nilai.update(kirimdata, { where: { idUser: body.idUser, mapel: body.mapel } })
 			}
 			
 			return OK(res, body)
@@ -2122,6 +2240,15 @@ function importExcel (models) {
 											uas: 0
 										}
 									}
+								]),
+								dataKehadiran: JSON.stringify([
+									{
+										kehadiran: {
+											sakit: 0,
+											alfa: 0,
+											ijin: 0,
+										}
+									}
 								])
 							})
 						})
@@ -2217,7 +2344,7 @@ function exportExcel (models) {
 						namaSekolah: val.UserDetail.namaSekolah,
 						npsn: val.UserDetail.npsn,
 						alamatSekolah: val.UserDetail.alamatSekolah,
-						kabkotSekolah: val.UserDetail.kabkotSekolah ? uppercaseLetterFirst(kabkota_sekolah.nama) : null,
+						kabkotSekolah: val.UserDetail.kabkotSekolah ? uppercaseLetterFirst2(kabkota_sekolah.nama) : null,
 						noPesertaUN: val.UserDetail.noPesertaUN,
 						noSKHUN: val.UserDetail.noSKHUN,
 						noIjazah: val.UserDetail.noIjazah,
@@ -2247,10 +2374,10 @@ function exportExcel (models) {
 						penghasilan: val.UserDetail.penghasilan ? penghasilan.label : null,
 						telp: val.UserDetail.telp,
 						alamat: val.UserDetail.alamat,
-						provinsi: val.UserDetail.provinsi ? uppercaseLetterFirst(provinsi.nama) : null,
-						kabKota: val.UserDetail.kabKota ? uppercaseLetterFirst(kabkota.nama) : null,
-						kecamatan: val.UserDetail.kecamatan ? uppercaseLetterFirst(kecamatan.nama) : null,
-						kelurahan: val.UserDetail.kelurahan ? uppercaseLetterFirst(kelurahan.nama) : null,
+						provinsi: val.UserDetail.provinsi ? uppercaseLetterFirst2(provinsi.nama) : null,
+						kabKota: val.UserDetail.kabKota ? uppercaseLetterFirst2(kabkota.nama) : null,
+						kecamatan: val.UserDetail.kecamatan ? uppercaseLetterFirst2(kecamatan.nama) : null,
+						kelurahan: val.UserDetail.kelurahan ? uppercaseLetterFirst2(kelurahan.nama) : null,
 						kodePos: val.UserDetail.kodePos,
 						kelas: val.UserDetail.kelas,
 						statusTempatTinggal: val.UserDetail.statusTempatTinggal ? status_tempat_tinggal.label : null,
@@ -2345,6 +2472,18 @@ function pdfCreate (models) {
 	return async (req, res, next) => {
 		let { uid } = req.params
 		try {
+			const dataCMS = await models.CMSSetting.findAll();
+
+			const cms_setting = {}
+			dataCMS.forEach(str => {
+				let eva = JSON.parse(str.setting)
+				if(eva.label){
+					cms_setting[str.kode] = eva
+				}else{
+					cms_setting[str.kode] = eva.value
+				}
+			})
+			
 			const dataSiswaSiswi = await models.User.findOne({
 				where: { idUser: uid },
 				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
@@ -2393,7 +2532,7 @@ function pdfCreate (models) {
 				nikSiswa: dataSiswaSiswi.UserDetail.nikSiswa,
 				nomorInduk: dataSiswaSiswi.UserDetail.nomorInduk,
 				namaRole: dataSiswaSiswi.Role.namaRole,
-				nama: dataSiswaSiswi.nama,
+				nama: uppercaseLetterFirst2(dataSiswaSiswi.nama),
 				username: dataSiswaSiswi.username,
 				email: dataSiswaSiswi.email,
 				password: dataSiswaSiswi.password,
@@ -2412,7 +2551,7 @@ function pdfCreate (models) {
 					namaSekolah: dataSiswaSiswi.UserDetail.namaSekolah,
 					npsn: dataSiswaSiswi.UserDetail.npsn,
 					alamatSekolah: dataSiswaSiswi.UserDetail.alamatSekolah,
-					kabkotSekolah: dataSiswaSiswi.UserDetail.kabkotSekolah ? uppercaseLetterFirst(kabkota_sekolah.nama) : null,
+					kabkotSekolah: dataSiswaSiswi.UserDetail.kabkotSekolah ? uppercaseLetterFirst2(kabkota_sekolah.nama) : null,
 					noPesertaUN: dataSiswaSiswi.UserDetail.noPesertaUN,
 					noSKHUN: dataSiswaSiswi.UserDetail.noSKHUN,
 					noIjazah: dataSiswaSiswi.UserDetail.noIjazah,
@@ -2422,7 +2561,7 @@ function pdfCreate (models) {
 				namaKK: dataSiswaSiswi.UserDetail.namaKK,
 				// dataOrangtua: {
 				// 	dataAyah: {
-						namaAyah: dataSiswaSiswi.UserDetail.namaAyah,
+						namaAyah: dataSiswaSiswi.UserDetail.namaAyah ? uppercaseLetterFirst2(dataSiswaSiswi.UserDetail.namaAyah) : '-',
 						tahunAyah: dataSiswaSiswi.UserDetail.tahunAyah,
 						statusAyah: dataSiswaSiswi.UserDetail.statusAyah ? status_ayah.label : null,
 						nikAyah: dataSiswaSiswi.UserDetail.nikAyah,
@@ -2431,7 +2570,7 @@ function pdfCreate (models) {
 						telpAyah: dataSiswaSiswi.UserDetail.telpAyah,
 					// },
 					// dataIbu: {
-						namaIbu: dataSiswaSiswi.UserDetail.namaIbu,
+						namaIbu: dataSiswaSiswi.UserDetail.namaIbu ? uppercaseLetterFirst2(dataSiswaSiswi.UserDetail.namaIbu) : '-',
 						tahunIbu: dataSiswaSiswi.UserDetail.tahunIbu,
 						statusIbu: dataSiswaSiswi.UserDetail.statusIbu ? status_ibu.label : null,
 						nikIbu: dataSiswaSiswi.UserDetail.nikIbu,
@@ -2440,7 +2579,7 @@ function pdfCreate (models) {
 						telpIbu: dataSiswaSiswi.UserDetail.telpIbu,
 					// },
 					// dataWali: {
-						namaWali: dataSiswaSiswi.UserDetail.namaWali,
+						namaWali: dataSiswaSiswi.UserDetail.namaWali ? uppercaseLetterFirst2(dataSiswaSiswi.UserDetail.namaWali) : '-',
 						tahunWali: dataSiswaSiswi.UserDetail.tahunWali,
 						nikWali: dataSiswaSiswi.UserDetail.nikWali,
 						pendidikanWali: dataSiswaSiswi.UserDetail.pendidikanWali ? pendidikan_wali.label : null,
@@ -2452,10 +2591,10 @@ function pdfCreate (models) {
 				// dataAlamatOrangtua: {
 					telp: dataSiswaSiswi.UserDetail.telp,
 					alamat: dataSiswaSiswi.UserDetail.alamat,
-					provinsi: dataSiswaSiswi.UserDetail.provinsi ? uppercaseLetterFirst(provinsi.nama) : null,
-					kabKota: dataSiswaSiswi.UserDetail.kabKota ? uppercaseLetterFirst(kabkota.nama) : null,
-					kecamatan: dataSiswaSiswi.UserDetail.kecamatan ? uppercaseLetterFirst(kecamatan.nama) : null,
-					kelurahan: dataSiswaSiswi.UserDetail.kelurahan ? uppercaseLetterFirst(kelurahan.nama) : null,
+					provinsi: dataSiswaSiswi.UserDetail.provinsi ? uppercaseLetterFirst2(provinsi.nama) : null,
+					kabKota: dataSiswaSiswi.UserDetail.kabKota ? uppercaseLetterFirst2(kabkota.nama) : null,
+					kecamatan: dataSiswaSiswi.UserDetail.kecamatan ? uppercaseLetterFirst2(kecamatan.nama) : null,
+					kelurahan: dataSiswaSiswi.UserDetail.kelurahan ? uppercaseLetterFirst2(kelurahan.nama) : null,
 					kodePos: dataSiswaSiswi.UserDetail.kodePos,
 				// },
 				kelas: dataSiswaSiswi.UserDetail.kelas,
@@ -2477,7 +2616,7 @@ function pdfCreate (models) {
 				statusAktif: dataSiswaSiswi.statusAktif,
 			}
 			// return OK(res, hasil)
-			ejs.renderFile(path.join(__dirname, "../../src/views/viewSiswa.ejs"), { dataSiswa: hasil }, (err, data) => {
+			ejs.renderFile(path.join(__dirname, "../../src/views/viewSiswa.ejs"), { dataSiswa: hasil, cmsSetup: cms_setting }, (err, data) => {
 				if (err) {
 					console.log(err);
 				} else {
@@ -2514,48 +2653,165 @@ function pdfCreate (models) {
 	}
 }
 
+function pdfCreateRaport (models) {
+	return async (req, res, next) => {
+		let { uid } = req.params
+		try {
+			const dataCMS = await models.CMSSetting.findAll();
+
+			const cms_setting = {}
+			dataCMS.forEach(str => {
+				let eva = JSON.parse(str.setting)
+				if(eva.label){
+					cms_setting[str.kode] = eva
+				}else{
+					cms_setting[str.kode] = eva.value
+				}
+			})
+			
+			const dataSiswaSiswi = await models.User.findOne({
+				where: { idUser: uid },
+				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
+				include: [
+					{ 
+						model: models.Role,
+						attributes: ['namaRole'],
+						where: { status: true }
+					},
+					{ 
+						model: models.UserDetail,
+					},
+				],
+				order: [
+					['createdAt', 'DESC'],
+				],
+			});
+
+			const jumlahSiswa = await models.User.count({
+				where: { mutasiAkun: false },
+				include: [
+					{ 
+						model: models.UserDetail,
+						where: { kelas: dataSiswaSiswi.UserDetail.kelas },
+					},
+				],
+			});
+
+			const dataNilai = await models.Nilai.findAll({
+				where: { idUser: uid },
+				attributes: ['mapel', 'dataNilai', 'dataKehadiran']
+			})
+			let hasilBayangan = 0
+			let kehadiranBayangan = {
+				sakit: 0,
+				alfa: 0,
+				ijin: 0,
+			}
+			let resultNilai = await Promise.all(dataNilai.map(async str => {
+				const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: dataSiswaSiswi.UserDetail.kelas, mapel: str.mapel, status: true } });
+				let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
+				let kkm = dataJadwal ? dataJadwal.kkm : 0
+				let dataStruktural = null
+				if(dataJadwal) {
+					dataStruktural = await models.User.findOne({ where: { idUser: dataJadwal.idUser } });
+				}
+				let hasil = JSON.parse(str.dataNilai)
+				let hasil2 = JSON.parse(str.dataKehadiran)
+				let resdata = hasil[0].nilai
+				let totalNilaiTugas = Number(resdata.tugas1) + Number(resdata.tugas2) + Number(resdata.tugas3) + Number(resdata.tugas4) + Number(resdata.tugas5) + Number(resdata.tugas6) + Number(resdata.tugas7) + Number(resdata.tugas8) + Number(resdata.tugas9) + Number(resdata.tugas10)
+				let rataRataTugas = totalNilaiTugas === 0 ? 0 : totalNilaiTugas / Number(jumlahTugas)
+				let rataRataNilai = (Number(rataRataTugas) + Number(resdata.uts) + Number(resdata.uas)) / 3
+				let hurufNilai = rataRataNilai <= 50 ? 'E' : rataRataNilai <= 65 ? 'D' : rataRataNilai <= 75 ? 'C' : rataRataNilai <= 85 ? 'B' : 'A'
+				let hasilakhir = rataRataNilai != 0 ? Math.ceil(rataRataNilai) : 0
+				hasilBayangan += hasilakhir
+				kehadiranBayangan.sakit += hasil2[0].kehadiran.sakit
+				kehadiranBayangan.alfa += hasil2[0].kehadiran.alfa
+				kehadiranBayangan.ijin += hasil2[0].kehadiran.ijin
+				return {
+					mapel: str.mapel,
+					nilai: hasilakhir,
+					kehadiran: hasil2[0].kehadiran,
+					namaGuru: dataStruktural ? dataStruktural.nama : '-',
+					kkm,
+					hurufNilai,
+					pembilang: hasilakhir === 0 ? 'Nol' : pembilang(hasilakhir)
+				}
+			}))
+			
+			let hasilAkhir = Math.ceil(hasilBayangan / dataNilai.length)
+			let hurufNilai = hasilAkhir <= 50 ? 'E' : hasilAkhir <= 65 ? 'D' : hasilAkhir <= 75 ? 'C' : hasilAkhir <= 85 ? 'B' : 'A'
+			const hasil = {
+				url: BASE_URL,
+				idUser: dataSiswaSiswi.idUser,
+				nomorInduk: dataSiswaSiswi.UserDetail.nomorInduk,
+				nama: uppercaseLetterFirst2(dataSiswaSiswi.nama),
+				kelas: dataSiswaSiswi.UserDetail.kelas,
+				peringkat: dataSiswaSiswi.UserDetail.peringkat,
+				jumlahSiswa,
+				hasilAkhir,
+				hurufNilai,
+				pembilang: hasilAkhir === 0 ? 'Nol' : pembilang(hasilAkhir),
+				dataNilai: resultNilai,
+				kehadiran: kehadiranBayangan,
+			}
+			// return OK(res, hasil)
+			ejs.renderFile(path.join(__dirname, "../../src/views/viewRaportSiswa.ejs"), { dataSiswa: hasil, cmsSetup: cms_setting }, (err, data) => {
+				if (err) {
+					console.log(err);
+				} else {
+					// console.log(data)
+					let options = {
+						format: "A4",
+						orientation: "portrait",
+						quality: "10000",
+						border: {
+							top: "2cm",
+							right: "1.5cm",
+							bottom: "2cm",
+							left: "1.5cm"
+						},
+						// header: {
+						// 	height: "12mm",
+						// },
+						// footer: {
+						// 	height: "15mm",
+						// },
+						httpHeaders: {
+							"Content-type": "application/pdf",
+						},
+						type: "pdf",
+					};
+					pdf.create(data, options).toStream(function(err, stream){
+						stream.pipe(res);
+					});
+				}
+			});
+		} catch (err) {
+			return NOT_FOUND(res, err.message)
+		}
+	}
+}
+
 function testing (models) {
 	return async (req, res, next) => {
-		let body = req.body
 		try {
-			let mapel = body.mengajarBidang.split(', ')
-			let kelas = body.mengajarKelas.split(', ')
-			
-			const mengajar = await models.Mengajar.findAll({ where: { kode: mapel }}); 
-			const dataMengajar = await mengajar.map(str => str.label)
-
-			let kumpul = []
-			await Promise.all(dataMengajar.map(async (val) => {
-				await Promise.all(kelas.map(val2 => {
-					kumpul.push({
-						idUser: body.idUser,
-						mapel: val,
-						kelas: val2
-					})
-				}))
-			}))
-
-			let kumpulan = []
-			await Promise.all(kumpul.map(async val => {
-				const dataJadwal = await models.JadwalMengajar.findOne({ 
-					where: { idUser: body.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
-					attributes: ['idUser', 'mapel', 'kelas', 'jumlahTugas', 'status']
-				});
-				if(!dataJadwal){
-					return kumpulan.push({
-            idUser: body.idUser,
-            mapel: val.mapel,
-            kelas: val.kelas,
-            jumlahTugas: 10,
-            status: true
-        	})
-				}
-				kumpulan.push(dataJadwal)
-			}))
-
-			await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']))
-			return OK(res, kumpulan)
-			// return OK(res, { idUser: body.idUser, mapel, kelas })
+			let textInput = "JAWA BARAT"
+			let regex = /[\!\@\#\$\%\^\&\*\)\(\+\=\.\<\>\{\}\[\]\:\;\'\"\|\~\`\_\-]/g
+			let cek = regex.test(textInput)
+			textInput = textInput.toLowerCase();
+			var stringArray = ''
+			if(cek){
+				stringArray = textInput.split(". ");
+			}else{
+				stringArray = textInput.split(/\b(\s)/);
+			}
+			for (var i = 0; i < stringArray.length; i++) {
+				stringArray[i] =
+					stringArray[i].charAt(0).toUpperCase() +
+					stringArray[i].substring(1);
+			}
+			var finalText = cek ? stringArray.join(". ") : stringArray.join("");
+			return OK(res, finalText)
 		} catch (err) {
 			return NOT_FOUND(res, err.message)
 		}
@@ -2573,6 +2829,7 @@ module.exports = {
   getSiswaSiswibyUid,
   postSiswaSiswi,
   getWaliKelas,
+  updatePeringkat,
   getJadwalMengajar,
   postJadwalMengajar,
   getPenilaian,
@@ -2581,5 +2838,6 @@ module.exports = {
   importExcel,
   exportExcel,
   pdfCreate,
+  pdfCreateRaport,
   testing,
 }
