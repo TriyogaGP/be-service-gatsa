@@ -2818,9 +2818,9 @@ function pdfCreateRaport (models) {
 						orientation: "portrait",
 						quality: "10000",
 						border: {
-							top: "1cm",
+							top: "1.5cm",
 							right: "2cm",
-							bottom: "1cm",
+							bottom: "1.5cm",
 							left: "2cm"
 						},
 						// header: {
