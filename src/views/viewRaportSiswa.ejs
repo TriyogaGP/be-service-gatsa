@@ -54,8 +54,13 @@
 			text-align: center;
 			font-weight: bold;
 		}
+		.textdes{
+			text-align: left;
+			font-weight: bold;
+			font-size: 12px;
+		}
 		.headerTable{ 
-			font-size: 10.xpt; 
+			font-size: 10px; 
 			text-align: center;
 			font-weight: bold;
 		}
@@ -102,24 +107,24 @@
 			</p>
 			<table border="0" width="100%" cellspacing="0" cellpadding="0">
 				<tr>
-					<td width="14%" style="text-align: left; font-weight: bold;">Nama Sekolah</td>
+					<td width="14%" class="textdes">Nama Sekolah</td>
 					<td width="30%">: <%= cmsSetup.namasekolah %></td>
 					<td width="18%">&nbsp;</td>
-					<td width="16%" style="text-align: left; font-weight: bold;">Kelas</td>
+					<td width="16%" class="textdes">Kelas</td>
 					<td width="20%">: <%= dataSiswa.kelas %></td>
 				</tr>
 				<tr>
-					<td width="14%" style="text-align: left; font-weight: bold;">Nomor Induk</td>
+					<td width="14%" class="textdes">Nomor Induk</td>
 					<td width="30%">: <%= dataSiswa.nomorInduk %></td>
 					<td width="18%">&nbsp;</td>
-					<td width="16%" style="text-align: left; font-weight: bold;">Semester</td>
+					<td width="16%" class="textdes">Semester</td>
 					<td width="20%">: <%= cmsSetup.semester.label %></td>
 				</tr>
 				<tr>
-					<td width="14%" style="text-align: left; font-weight: bold;">Nama Siswa/i</td>
+					<td width="14%" class="textdes">Nama Siswa/i</td>
 					<td width="30%">: <%= dataSiswa.nama %></td>
 					<td width="18%">&nbsp;</td>
-					<td width="16%" style="text-align: left; font-weight: bold;">Tahun Pelajaran</td>
+					<td width="16%" class="textdes">Tahun Pelajaran</td>
 					<td width="20%">: <%= cmsSetup.tahunpelajaran.label %></td>
 				</tr>
 			</table>
