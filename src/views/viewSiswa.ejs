@@ -11,13 +11,13 @@
 	<style>
 		.judul{
 			font-weight: bold; 
-			font-size: 18px; 
+			font-size: 18pt; 
 			text-align: left;
 			text-decoration: underline;
 			padding-bottom: 10px;
 		}
 		.isi{ 
-			font-size: 12px; 
+			font-size: 12pt; 
 			text-align: left;
 		}
 		.container{
@@ -25,7 +25,7 @@
 			height: 100%;
 		}
 		.validate {
-			background-image: url('http://localhost:5100/bahan/validate.png');
+			background-image: url('<%= dataSiswa.url %>bahan/validate.png');
 			background-repeat: repeat;
 			background-attachment: fixed;
 			/* opacity: 0.4; */
@@ -33,7 +33,7 @@
 			background-size: 100%;
 		}
 		.notvalidate {
-			background-image: url('http://localhost:5100/bahan/notvalidate.png');
+			background-image: url('<%= dataSiswa.url %>bahan/notvalidate.png');
 			background-repeat: repeat;
 			background-attachment: fixed;
 			/* opacity: 0.4;
@@ -46,13 +46,13 @@
 		.namasekolah{
 			text-align: center; 
 			font-weight: bold; 
-			font-size: 18px; 
+			font-size: 18pt; 
 			vertical-align: top;
 			height: 10px;
 		}
 		.alamat{
 			text-align: center; 
-			font-size: 12px; 
+			font-size: 12pt; 
 			vertical-align: top;
 			height: 10px;
 		}
@@ -65,25 +65,25 @@
 		<% } %>
 			<table border="0" width="100%" cellspacing="0" cellpadding="0">
 				<tr>
-					<td width="25%" style="text-align: center;">
+					<td width="20%" style="text-align: center; vertical-align: middle;">
 						<img
-							src="http://localhost:5100/bahan/gatsa.png"
+							src="<%= dataSiswa.url %>bahan/gatsa.png"
 							alt="Gatsa logo"
 							width="80px"
 							height="80px"
-							style="display: block;"
+							style="display: inline-block;"
 						/>
 					</td>
-					<td>
+					<td height="110px">
 						<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
-						<p class="alamat"><%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
+						<p class="alamat">Alamat: <%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
 					</td>
 				</tr>
 				<tr>
 					<td colspan="2"><hr></td>
 				</tr>
 			</table>
-			<table width="100%" border="0" cellspacing="0" cellpadding="0"> 
+			<table width="100%" border="0" cellspacing="2" cellpadding="2"> 
 				<tr>
 					<td colspan="3" class="judul">DATA PRIBADI</td>
 				</tr>
@@ -384,7 +384,9 @@
 			</table>
 			<br/><br/><br/><br/><br/>
 			<br/><br/><br/><br/><br/>
-			<br/><br/>
+			<br/><br/><br/><br/><br/>
+			<br/><br/><br/><br/><br/>
+			<br/><br/><br/><br/><br/>
 		</div>
 	</div>
 </body>

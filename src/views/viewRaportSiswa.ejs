@@ -11,24 +11,25 @@
 	<style>
 		.judul{
 			font-weight: bold; 
-			font-size: 18px; 
+			font-size: 18pt; 
 			text-align: left;
 			text-decoration: underline;
 			padding-bottom: 10px;
 		}
 		.isi{ 
-			font-size: 12px; 
+			font-size: 12pt; 
 			text-align: left;
 		}
 		.container{
 			width: 100%;
 			height: 100%;
+			font-family: 'Times New Roman', Times, serif;
 		}
 		hr{
 			border: 2px double #000;
 		}
 		.draft {
-			background-image: url('http://localhost:5100/bahan/draft.png');
+			background-image: url('<%= dataSiswa.url %>bahan/draft.png');
 			background-repeat: repeat;
 			background-attachment: fixed;
 			/* opacity: 0.4;
@@ -38,13 +39,13 @@
 		.namasekolah{
 			text-align: center; 
 			font-weight: bold; 
-			font-size: 18px; 
+			font-size: 18pt; 
 			vertical-align: top;
 			height: 10px;
 		}
 		.alamat{
 			text-align: center; 
-			font-size: 12px; 
+			font-size: 12pt; 
 			vertical-align: top;
 			height: 10px;
 		}
@@ -54,12 +55,12 @@
 			font-weight: bold;
 		}
 		.headerTable{ 
-			font-size: 12px; 
+			font-size: 10.5pt; 
 			text-align: center;
 			font-weight: bold;
 		}
 		.contentTable{ 
-			font-size: 12px; 
+			font-size: 12pt; 
 		}
 		.isiTable1{
 			text-align: left;
@@ -77,18 +78,18 @@
 		<% } %>
 			<table border="0" width="100%" cellspacing="0" cellpadding="0">
 				<tr>
-					<td width="25%" style="text-align: center;">
+					<td width="20%" style="text-align: center; vertical-align: middle;">
 						<img
-							src="http://localhost:5100/bahan/gatsa.png"
+							src="<%= dataSiswa.url %>bahan/gatsa.png"
 							alt="Gatsa logo"
 							width="80px"
 							height="80px"
-							style="display: block;"
+							style="display: inline-block;"
 						/>
 					</td>
-					<td>
+					<td height="110px">
 						<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
-						<p class="alamat"><%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
+						<p class="alamat">Alamat: <%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
 					</td>
 				</tr>
 				<tr>
@@ -96,26 +97,33 @@
 				</tr>
 			</table>
 			<p class="kepala">
-				PENILAIAN AKHIR SEMESTER (PAS)<br>
+				<%= cmsSetup.jenisraport.label %><br>
 				TAHUN PELAJARAN <%= cmsSetup.tahunpelajaran.label %>
 			</p>
 			<table border="0" width="100%" cellspacing="0" cellpadding="0">
 				<tr>
-					<td width="20%" style="text-align: left; font-weight: bold;">Nomor Induk</td>
-					<td width="20%">: <%= dataSiswa.nomorInduk %></td>
-					<td width="20%">&nbsp;</td>
-					<td width="20%" style="text-align: left; font-weight: bold;">Kelas</td>
+					<td width="14%" style="text-align: left; font-weight: bold;">Nama Sekolah</td>
+					<td width="30%">: <%= cmsSetup.namasekolah %></td>
+					<td width="18%">&nbsp;</td>
+					<td width="16%" style="text-align: left; font-weight: bold;">Kelas</td>
 					<td width="20%">: <%= dataSiswa.kelas %></td>
 				</tr>
 				<tr>
-					<td width="20%" style="text-align: left; font-weight: bold;">Nama Siswa/i</td>
-					<td width="20%">: <%= dataSiswa.nama %></td>
-					<td width="20%">&nbsp;</td>
-					<td width="20%" style="text-align: left; font-weight: bold;">Tahun Pelajaran</td>
+					<td width="14%" style="text-align: left; font-weight: bold;">Nomor Induk</td>
+					<td width="30%">: <%= dataSiswa.nomorInduk %></td>
+					<td width="18%">&nbsp;</td>
+					<td width="16%" style="text-align: left; font-weight: bold;">Semester</td>
+					<td width="20%">: <%= cmsSetup.semester.label %></td>
+				</tr>
+				<tr>
+					<td width="14%" style="text-align: left; font-weight: bold;">Nama Siswa/i</td>
+					<td width="30%">: <%= dataSiswa.nama %></td>
+					<td width="18%">&nbsp;</td>
+					<td width="16%" style="text-align: left; font-weight: bold;">Tahun Pelajaran</td>
 					<td width="20%">: <%= cmsSetup.tahunpelajaran.label %></td>
 				</tr>
 			</table>
-			<table border="1" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 10px; border: 1px solid #000 ;">
+			<table border="1" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 25px; border: 1px solid #000 ;">
 				<tr class="headerTable">
 					<td>MATA PELAJARAN</td>
 					<td>KKM</td>
@@ -145,7 +153,7 @@
 					<td class="isiTable1" colspan="4"><b><%= dataSiswa.peringkat %></b> dari total <b><%= dataSiswa.jumlahSiswa %> Siswa/i</b></td>
 				</tr>
 			</table>
-			<table border="1" width="300px" cellspacing="0" cellpadding="0" style="margin-top: 20px; border: 1px solid #000 ;">
+			<table border="1" width="300px" cellspacing="0" cellpadding="0" style="margin-top: 25px; border: 1px solid #000 ;">
 				<tr class="headerTable">
 					<td>KEHADIRAN</td>
 					<td>TOTAL</td>
@@ -163,6 +171,8 @@
 					<td class="isiTable2"><%= dataSiswa.kehadiran.alfa %></td>
 				</tr>
 			</table>
+			<br/><br/><br/><br/><br/>
+			<br/><br/><br/><br/><br/>
 			<br/><br/><br/><br/><br/>
 			<br/><br/><br/><br/><br/>
 		</div>

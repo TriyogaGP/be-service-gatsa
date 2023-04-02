@@ -1219,6 +1219,18 @@ function getWaliKelas (models) {
 					],
 				});
 
+				const dataCMS = await models.CMSSetting.findAll();
+
+				const cms_setting = {}
+				dataCMS.forEach(str => {
+					let eva = JSON.parse(str.setting)
+					if(eva.label){
+						cms_setting[str.kode] = eva
+					}else{
+						cms_setting[str.kode] = eva.value
+					}
+				})
+
 				const jumlahSiswa = await models.User.count({
 					where: { mutasiAkun: false },
 					include: [
@@ -1250,6 +1262,7 @@ function getWaliKelas (models) {
 						alfa: 0,
 						ijin: 0,
 					}
+					let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
 					let resultNilai = await Promise.all(dataNilai.map(async str => {
 						const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: kelas, mapel: str.mapel, status: true } });
 						let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
@@ -1260,20 +1273,21 @@ function getWaliKelas (models) {
 						}
 						let hasil = JSON.parse(str.dataNilai)
 						let hasil2 = JSON.parse(str.dataKehadiran)
-						let resdata = hasil[0].nilai
-						let totalNilaiTugas = Number(resdata.tugas1) + Number(resdata.tugas2) + Number(resdata.tugas3) + Number(resdata.tugas4) + Number(resdata.tugas5) + Number(resdata.tugas6) + Number(resdata.tugas7) + Number(resdata.tugas8) + Number(resdata.tugas9) + Number(resdata.tugas10)
+						let nilaiData = hasil.filter(str => str.semester === semester)[0].nilai
+						let kehadiranData = hasil2.filter(str => str.semester === semester)[0].kehadiran
+						let totalNilaiTugas = Number(nilaiData.tugas1) + Number(nilaiData.tugas2) + Number(nilaiData.tugas3) + Number(nilaiData.tugas4) + Number(nilaiData.tugas5) + Number(nilaiData.tugas6) + Number(nilaiData.tugas7) + Number(nilaiData.tugas8) + Number(nilaiData.tugas9) + Number(nilaiData.tugas10)
 						let rataRataTugas = totalNilaiTugas === 0 ? 0 : totalNilaiTugas / Number(jumlahTugas)
-						let rataRataNilai = (Number(rataRataTugas) + Number(resdata.uts) + Number(resdata.uas)) / 3
+						let rataRataNilai = (Number(rataRataTugas) + Number(nilaiData.uts) + Number(nilaiData.uas)) / 3
 						let hurufNilai = rataRataNilai <= 50 ? 'E' : rataRataNilai <= 65 ? 'D' : rataRataNilai <= 75 ? 'C' : rataRataNilai <= 85 ? 'B' : 'A'
 						let nilaiakhir = rataRataNilai != 0 ? Math.ceil(rataRataNilai) : 0 
 						hasilBayangan += nilaiakhir
-						kehadiranBayangan.sakit += hasil2[0].kehadiran.sakit
-						kehadiranBayangan.alfa += hasil2[0].kehadiran.alfa
-						kehadiranBayangan.ijin += hasil2[0].kehadiran.ijin
+						kehadiranBayangan.sakit += kehadiranData.sakit
+						kehadiranBayangan.alfa += kehadiranData.alfa
+						kehadiranBayangan.ijin += kehadiranData.ijin
 						return {
 							mapel: str.mapel,
 							nilai: nilaiakhir,
-							kehadiran: hasil2[0].kehadiran,
+							kehadiran: kehadiranData,
 							namaGuru: dataStruktural ? dataStruktural.nama : '-',
 							kkm,
 							hurufNilai,
@@ -1344,6 +1358,19 @@ function updatePeringkat (models) {
 					],
 				});
 	
+				const dataCMS = await models.CMSSetting.findAll();
+
+				const cms_setting = {}
+				dataCMS.forEach(str => {
+					let eva = JSON.parse(str.setting)
+					if(eva.label){
+						cms_setting[str.kode] = eva
+					}else{
+						cms_setting[str.kode] = eva.value
+					}
+				})
+
+				let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
 				const getResult = await Promise.all(dataSiswaSiswi.map(async val => {
 					const dataNilai = await models.Nilai.findAll({
 						where: { idUser: val.idUser },
@@ -1355,10 +1382,10 @@ function updatePeringkat (models) {
 						const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: kelasAktif[x], mapel: str.mapel, status: true } });
 						let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
 						let hasil = JSON.parse(str.dataNilai)
-						let resdata = hasil[0].nilai
-						let totalNilaiTugas = Number(resdata.tugas1) + Number(resdata.tugas2) + Number(resdata.tugas3) + Number(resdata.tugas4) + Number(resdata.tugas5) + Number(resdata.tugas6) + Number(resdata.tugas7) + Number(resdata.tugas8) + Number(resdata.tugas9) + Number(resdata.tugas10)
+						let nilaiData = hasil.filter(str => str.semester === semester)[0].nilai
+						let totalNilaiTugas = Number(nilaiData.tugas1) + Number(nilaiData.tugas2) + Number(nilaiData.tugas3) + Number(nilaiData.tugas4) + Number(nilaiData.tugas5) + Number(nilaiData.tugas6) + Number(nilaiData.tugas7) + Number(nilaiData.tugas8) + Number(nilaiData.tugas9) + Number(nilaiData.tugas10)
 						let rataRataTugas = totalNilaiTugas === 0 ? 0 : totalNilaiTugas / Number(jumlahTugas)
-						let rataRataNilai = (Number(rataRataTugas) + Number(resdata.uts) + Number(resdata.uas)) / 3
+						let rataRataNilai = (Number(rataRataTugas) + Number(nilaiData.uts) + Number(nilaiData.uas)) / 3
 						let nilaiakhir = rataRataNilai != 0 ? Math.ceil(rataRataNilai) : 0 
 						hasilBayangan += nilaiakhir
 					}))
@@ -1366,10 +1393,11 @@ function updatePeringkat (models) {
 					let hasilAkhir = Math.ceil(hasilBayangan / dataNilai.length)
 					return {
 						idUser: val.idUser,
+						nama: val.nama,
 						hasilAkhir,
 					}
 				}))
-				let peringkatSiswa = _.orderBy(getResult, 'hasilAkhir', 'desc')
+				let peringkatSiswa = _.orderBy(getResult, ['hasilAkhir', 'nama'], ['desc', 'asc'])
 				result.push({ peringkatSiswa })
 			}
 
@@ -1548,6 +1576,18 @@ function getPenilaian (models) {
 				where.kelas = kelas
 			}
 
+			const dataCMS = await models.CMSSetting.findAll();
+
+			const cms_setting = {}
+			dataCMS.forEach(str => {
+				let eva = JSON.parse(str.setting)
+				if(eva.label){
+					cms_setting[str.kode] = eva
+				}else{
+					cms_setting[str.kode] = eva.value
+				}
+			})
+
 			const dataSiswaSiswi = await models.UserDetail.findAll({
 				where,
 				attributes: ['idUser'],
@@ -1562,11 +1602,14 @@ function getPenilaian (models) {
 			let result = await Promise.all(dataNilai.map(async (str) => {
 				let hasil = JSON.parse(str.dataNilai)
 				let hasil2 = JSON.parse(str.dataKehadiran)
+				let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+
 				return {
 					idUser: str.idUser,
 					mapel: str.mapel,
-					nilai: hasil[0].nilai,
-					kehadiran: hasil2[0].kehadiran,
+					semester,
+					nilai: hasil.filter(str => str.semester === semester)[0].nilai,
+					kehadiran: hasil2.filter(str => str.semester === semester)[0].kehadiran,
 				}
 			}))
 
@@ -1587,8 +1630,12 @@ function postPenilaian (models) {
 		try {
 			let kirimdata
 			if(body.jenis === 'nilai'){
+				const dataNilai = await models.Nilai.findOne({ where: { idUser: body.idUser, mapel: body.mapel } });
+				let hasil = JSON.parse(dataNilai.dataNilai)
+				let nilai = hasil.filter(str => str.semester !== body.semester)[0]
+				let obj = [ nilai, body.dataNilai[0] ]
 				kirimdata = {
-					dataNilai: JSON.stringify(body.dataNilai),
+					dataNilai: JSON.stringify(obj),
 				}
 				await models.Nilai.update(kirimdata, { where: { idUser: body.idUser, mapel: body.mapel } })
 			}
@@ -1600,8 +1647,12 @@ function postPenilaian (models) {
 				await models.JadwalMengajar.update(kirimdata, { where: { kelas: body.kelas, mapel: body.mapel } })
 			}
 			if(body.jenis === 'kehadiran'){
+				const dataKehadiran = await models.Nilai.findOne({ where: { idUser: body.idUser, mapel: body.mapel } });
+				let hasil = JSON.parse(dataKehadiran.dataKehadiran)
+				let nilai = hasil.filter(str => str.semester !== body.semester)[0]
+				let obj = [ nilai, body.dataKehadiran[0] ]
 				kirimdata = {
-					dataKehadiran: JSON.stringify(body.dataKehadiran),
+					dataKehadiran: JSON.stringify(obj),
 				}
 				await models.Nilai.update(kirimdata, { where: { idUser: body.idUser, mapel: body.mapel } })
 			}
@@ -2626,10 +2677,10 @@ function pdfCreate (models) {
 						orientation: "portrait",
 						quality: "10000",
 						border: {
-							top: "2cm",
-							right: "2.2cm",
-							bottom: "2cm",
-							left: "2.2cm"
+							top: "1cm",
+							right: "2cm",
+							bottom: "1cm",
+							left: "2cm"
 						},
 						// header: {
 						// 	height: "12mm",
@@ -2707,6 +2758,7 @@ function pdfCreateRaport (models) {
 				alfa: 0,
 				ijin: 0,
 			}
+			let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
 			let resultNilai = await Promise.all(dataNilai.map(async str => {
 				const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: dataSiswaSiswi.UserDetail.kelas, mapel: str.mapel, status: true } });
 				let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
@@ -2717,20 +2769,21 @@ function pdfCreateRaport (models) {
 				}
 				let hasil = JSON.parse(str.dataNilai)
 				let hasil2 = JSON.parse(str.dataKehadiran)
-				let resdata = hasil[0].nilai
-				let totalNilaiTugas = Number(resdata.tugas1) + Number(resdata.tugas2) + Number(resdata.tugas3) + Number(resdata.tugas4) + Number(resdata.tugas5) + Number(resdata.tugas6) + Number(resdata.tugas7) + Number(resdata.tugas8) + Number(resdata.tugas9) + Number(resdata.tugas10)
+				let nilaiData = hasil.filter(str => str.semester === semester)[0].nilai
+				let kehadiranData = hasil2.filter(str => str.semester === semester)[0].kehadiran
+				let totalNilaiTugas = Number(nilaiData.tugas1) + Number(nilaiData.tugas2) + Number(nilaiData.tugas3) + Number(nilaiData.tugas4) + Number(nilaiData.tugas5) + Number(nilaiData.tugas6) + Number(nilaiData.tugas7) + Number(nilaiData.tugas8) + Number(nilaiData.tugas9) + Number(nilaiData.tugas10)
 				let rataRataTugas = totalNilaiTugas === 0 ? 0 : totalNilaiTugas / Number(jumlahTugas)
-				let rataRataNilai = (Number(rataRataTugas) + Number(resdata.uts) + Number(resdata.uas)) / 3
+				let rataRataNilai = (Number(rataRataTugas) + Number(nilaiData.uts) + Number(nilaiData.uas)) / 3
 				let hurufNilai = rataRataNilai <= 50 ? 'E' : rataRataNilai <= 65 ? 'D' : rataRataNilai <= 75 ? 'C' : rataRataNilai <= 85 ? 'B' : 'A'
 				let hasilakhir = rataRataNilai != 0 ? Math.ceil(rataRataNilai) : 0
 				hasilBayangan += hasilakhir
-				kehadiranBayangan.sakit += hasil2[0].kehadiran.sakit
-				kehadiranBayangan.alfa += hasil2[0].kehadiran.alfa
-				kehadiranBayangan.ijin += hasil2[0].kehadiran.ijin
+				kehadiranBayangan.sakit += kehadiranData.sakit
+				kehadiranBayangan.alfa += kehadiranData.alfa
+				kehadiranBayangan.ijin += kehadiranData.ijin
 				return {
 					mapel: str.mapel,
 					nilai: hasilakhir,
-					kehadiran: hasil2[0].kehadiran,
+					kehadiran: kehadiranData,
 					namaGuru: dataStruktural ? dataStruktural.nama : '-',
 					kkm,
 					hurufNilai,
@@ -2765,10 +2818,10 @@ function pdfCreateRaport (models) {
 						orientation: "portrait",
 						quality: "10000",
 						border: {
-							top: "2cm",
-							right: "1.5cm",
-							bottom: "2cm",
-							left: "1.5cm"
+							top: "1cm",
+							right: "2cm",
+							bottom: "1cm",
+							left: "2cm"
 						},
 						// header: {
 						// 	height: "12mm",
