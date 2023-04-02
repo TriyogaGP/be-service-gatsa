@@ -2677,10 +2677,10 @@ function pdfCreate (models) {
 						orientation: "portrait",
 						quality: "10000",
 						border: {
-							top: "1.5cm",
-							right: "2cm",
-							bottom: "1.5cm",
-							left: "2cm"
+							top: "1cm",
+							right: "1cm",
+							bottom: "1cm",
+							left: "1cm"
 						},
 						// header: {
 						// 	height: "12mm",
@@ -2818,10 +2818,10 @@ function pdfCreateRaport (models) {
 						orientation: "portrait",
 						quality: "10000",
 						border: {
-							top: "1.5cm",
-							right: "2cm",
-							bottom: "1.5cm",
-							left: "2cm"
+							top: "1cm",
+							right: "1cm",
+							bottom: "1cm",
+							left: "1cm"
 						},
 						// header: {
 						// 	height: "12mm",
