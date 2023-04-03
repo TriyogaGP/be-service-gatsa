@@ -1,5 +1,22 @@
-const { response, OK, NOT_FOUND, NO_CONTENT } = require('../utils/response.utils');
-const { encrypt, decrypt, makeRandom, dateconvert, convertDate, convertDate3, createKSUID, pembilang, uppercaseLetterFirst2, buildMysqlResponseWithPagination, paginate } = require('../utils/helper.utils');
+const {
+	response,
+	OK,
+	NOT_FOUND,
+	NO_CONTENT
+} = require('../utils/response.utils');
+const {
+	encrypt,
+	decrypt,
+	makeRandom,
+	dateconvert,
+	convertDate,
+	convertDate3,
+	createKSUID,
+	pembilang,
+	uppercaseLetterFirst2,
+	buildMysqlResponseWithPagination,
+	paginate
+} = require('../utils/helper.utils');
 const {
 	_allOption,
 	_agamaOption,
@@ -32,7 +49,6 @@ const nodeGeocoder = require('node-geocoder');
 const readXlsxFile = require('read-excel-file/node');
 const { sequelizeInstance } = require('../configs/db.config');
 const dotenv = require('dotenv');
-const { group } = require('console');
 dotenv.config();
 const BASE_URL = process.env.BASE_URL
 

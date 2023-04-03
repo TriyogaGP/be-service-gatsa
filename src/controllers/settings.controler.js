@@ -1,5 +1,15 @@
-const { response, OK, NOT_FOUND, NO_CONTENT } = require('../utils/response.utils');
-const { encrypt, decrypt, createKSUID, buildMysqlResponseWithPagination } = require('../utils/helper.utils')
+const {
+	response,
+	OK,
+	NOT_FOUND,
+	NO_CONTENT
+} = require('../utils/response.utils');
+const {
+	encrypt,
+	decrypt,
+	createKSUID,
+	buildMysqlResponseWithPagination
+} = require('../utils/helper.utils')
 const { Op } = require('sequelize')
 const sequelize = require('sequelize')
 const { logger } = require('../configs/db.winston')
@@ -139,8 +149,18 @@ function crudMenu (models) {
 				where = { 
 					statusAktif: true,
 					[Op.or]: [
-						{ menuRoute: body.menu_route },
-						{ menuText: body.menu_text }
+						{ 
+							[Op.and]: [
+								{ kategori: body.kategori },
+								{ menuRoute: body.menu_route },
+							]
+						},
+						{ 
+							[Op.and]: [
+								{ menuRoute: body.menu_route },
+								{ menuText: body.menu_text }
+							]
+						},
 					]
 				}
 				const {count, rows} = await models.Menu.findAndCountAll({where});

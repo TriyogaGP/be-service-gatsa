@@ -1,4 +1,9 @@
-const { response, OK, NOT_FOUND, NO_CONTENT } = require('../utils/response.utils');
+const {
+	response,
+	OK,
+	NOT_FOUND,
+	NO_CONTENT
+} = require('../utils/response.utils');
 const { 
 	_buildResponseUser,
 	_buildResponseAdmin,
@@ -14,6 +19,7 @@ const nodemailer = require('nodemailer');
 const _ = require('lodash');
 const { logger } = require('../configs/db.winston')
 const nodeGeocoder = require('node-geocoder');
+const { sequelizeInstance } = require('../configs/db.config');
 const dotenv = require('dotenv');
 dotenv.config();
 const BASE_URL = process.env.BASE_URL
@@ -147,6 +153,66 @@ function ubahKataSandi (models) {
   }  
 }
 
+function ubahProfile (models) {
+  return async (req, res, next) => {
+		let body = { ...req.body }
+    try {
+			let kirimdataUser, kirimdataUserDetail
+			if(body.role === '3'){
+				kirimdataUser = {
+					nama: body.nama,
+					email: body.email,
+					username: body.username,
+					updateBy: body.idUser,
+				}
+				kirimdataUserDetail = {
+					nomorInduk: body.nomorInduk,
+					tempat: body.tempat,
+					tanggalLahir: body.tanggalLahir,
+					jenisKelamin: body.jenisKelamin,
+					agama: body.agama,
+					telp: body.telp,
+					alamat: body.alamat,
+					provinsi: body.provinsi,
+					kabKota: body.kabKota,
+					kecamatan: body.kecamatan,
+					kelurahan: body.kelurahan,
+					kodePos: body.kodePos,
+					pendidikanGuru: body.pendidikanGuru,
+				}
+			}
+			if(body.role === '1' || body.role === '2'){
+				kirimdataUser = {
+					nama: body.nama,
+					email: body.email,
+					username: body.username,
+					updateBy: body.idUser,
+				}
+				kirimdataUserDetail = {
+					tempat: body.tempat,
+					tanggalLahir: body.tanggalLahir,
+					jenisKelamin: body.jenisKelamin,
+					agama: body.agama,
+					telp: body.telp,
+					alamat: body.alamat,
+					provinsi: body.provinsi,
+					kabKota: body.kabKota,
+					kecamatan: body.kecamatan,
+					kelurahan: body.kelurahan,
+					kodePos: body.kodePos,
+				}
+			}
+			await sequelizeInstance.transaction(async trx => {
+				await models.User.update(kirimdataUser, { where: { idUser: body.idUser } }, { transaction: trx })
+				await models.UserDetail.update(kirimdataUserDetail, { where: { idUser: body.idUser } }, { transaction: trx })
+			})
+			return OK(res, body);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
 function profile (models) {
   return async (req, res, next) => {
 		let { idUser } = req.params
@@ -182,5 +248,6 @@ module.exports = {
   login,
 	forgotPass,
   ubahKataSandi,
+  ubahProfile,
   profile,
 }
