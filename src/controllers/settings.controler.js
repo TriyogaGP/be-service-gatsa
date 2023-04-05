@@ -177,7 +177,27 @@ function crudMenu (models) {
 				}
 				await models.Menu.create(kirimdata)
 			}else if(body.jenis == 'EDIT'){
-				if(await models.Menu.findOne({where: {[Op.or]: [{menuRoute: body.menu_route},{menuText: body.menu_text}], [Op.not]: [{idMenu: body.id_menu}]}})) return NOT_FOUND(res, 'Menu Route atau Menu Text sudah di gunakan !')
+				if(await models.Menu.findOne({
+					where: {
+						[Op.or]: [
+							{ 
+								[Op.and]: [
+									{ kategori: body.kategori },
+									{ menuRoute: body.menu_route },
+								]
+							},
+							{ 
+								[Op.and]: [
+									{ menuRoute: body.menu_route },
+									{ menuText: body.menu_text }
+								]
+							},
+						],
+						[Op.not]: [
+							{idMenu: body.id_menu}
+						]
+					}
+				})) return NOT_FOUND(res, 'Menu Route atau Menu Text sudah di gunakan !')
 				kirimdata = {
 					kategori: body.kategori,
 					menuRoute: body.menu_route,
@@ -639,7 +659,7 @@ function optionsMengajar (models) {
 
 function optionsKelas (models) {
   return async (req, res, next) => {
-		let { kondisi } = req.query
+		let { kondisi, walikelas } = req.query
     try {
 			if(kondisi === 'Use'){
 				const dataKelas = await models.Kelas.findAll({where: {status: true}});
@@ -647,7 +667,11 @@ function optionsKelas (models) {
 				await Promise.all(dataKelas.map(async str => {
 					const user = await models.UserDetail.findOne({where: {waliKelas: str.dataValues.kelas}});
 					if(user){
-						result.push({ ...str.dataValues, kelas: `${str.dataValues.kelas} (sudah di gunakan)`, disabled: true })
+						if(walikelas !== user.dataValues.waliKelas){
+							result.push({ ...str.dataValues, kelas: `${str.dataValues.kelas} (sudah di gunakan)`, disabled: true })
+						}else{
+							result.push(str.dataValues)
+						}
 					}else{
 						result.push(str.dataValues)
 					}

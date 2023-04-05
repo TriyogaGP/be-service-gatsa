@@ -44,7 +44,7 @@ try {
   app.use(express.static(path.join(__dirname,'/public')));
   // simple route
   app.get("/", (req, res) => {
-    res.json({ message: "Welcome to bezkoder application." });
+    res.json({ message: "Welcome to Backend MTsS. SIROJUL ATHFAL." });
   });
   //api
   app.use('/api/v1/auth', auth(models));
