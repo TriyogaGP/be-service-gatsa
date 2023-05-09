@@ -764,6 +764,16 @@ function optionsWilayah (models) {
   }  
 }
 
+function testing (models) {
+	return async (req, res, next) => {
+		try {
+			res.send('haha')
+		} catch (err) {
+			return NOT_FOUND(res, err.message)
+		}
+	}
+}
+
 module.exports = {
   updateFile,
   getUID,
@@ -795,4 +805,5 @@ module.exports = {
   optionsJarakRumah,
   optionsTransportasi,
   optionsWilayah,
+  testing,
 }

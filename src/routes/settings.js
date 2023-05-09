@@ -30,6 +30,7 @@ const {
   optionsJarakRumah,
   optionsTransportasi,
   optionsWilayah,
+  testing,
 } = require('../controllers/settings.controler')
 const { uploadFile } = require('../middleware/uploadFile')
 const { uploadBerkas } = require('../middleware/uploadBerkas')
@@ -58,6 +59,8 @@ module.exports = models => {
   route.route('/optionsWilayah').get(optionsWilayah(models))
   
   route.route('/updateFile').post(uploadFile, updateFile(models))
+  
+  route.route('/testing').get(testing(models))
 
   route.route('/Menu')
     .get(verifyToken, getMenu(models))

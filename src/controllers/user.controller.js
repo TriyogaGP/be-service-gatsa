@@ -976,7 +976,7 @@ function postSiswaSiswi (models) {
 					password: hashPassword,
 					kataSandi: encrypt(user.password),
 					statusAktif: 1,
-					createBy: user.idUser,
+					createBy: user.createupdateBy,
 				}
 				kirimdataUserDetail = {
 					idUser: user.idUser,
@@ -1043,6 +1043,19 @@ function postSiswaSiswi (models) {
 					transportasi: userdetail.dataLainnya.transportasi,
 				}
 
+				const dataCMS = await models.CMSSetting.findAll();
+
+				const cms_setting = {}
+				dataCMS.forEach(str => {
+					let eva = JSON.parse(str.setting)
+					if(eva.label){
+						cms_setting[str.kode] = eva
+					}else{
+						cms_setting[str.kode] = eva.value
+					}
+				})
+				let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+
 				let dataMengajar = await _allOption({ table: models.Mengajar })
 				let kirimdataNilai = []
 				await dataMengajar.map(str => {
@@ -1051,6 +1064,7 @@ function postSiswaSiswi (models) {
 						mapel: str.label,
 						dataNilai: JSON.stringify([
 							{
+								semester,
 								nilai: {
 									tugas1: 0,
 									tugas2: 0,
@@ -1102,7 +1116,7 @@ function postSiswaSiswi (models) {
 					password: hashPassword,
 					kataSandi: data.kataSandi == user.password ? user.password : encrypt(user.password),
 					statusAktif: 1,
-					updateBy: user.idUser,
+					updateBy: user.createupdateBy,
 				}
 				kirimdataUserDetail = {
 					nikSiswa: userdetail.nikSiswa,
@@ -1174,26 +1188,26 @@ function postSiswaSiswi (models) {
 			}else if(user.jenis == 'DELETE'){
 				kirimdataUser = {
 					statusAktif: 0,
-					deleteBy: user.idUser,
+					deleteBy: user.deleteBy,
 					deletedAt: new Date(),
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })	
 			}else if(user.jenis == 'STATUSRECORD'){
 				kirimdataUser = { 
 					statusAktif: user.kondisi, 
-					updateBy: user.idUser 
+					updateBy: user.createupdateBy 
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
 			}else if(user.jenis == 'VALIDASIAKUN'){
 				kirimdataUser = { 
 					validasiAkun: user.kondisi, 
-					updateBy: user.idUser 
+					updateBy: user.createupdateBy 
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
 			}else if(user.jenis == 'MUTASIAKUN'){
 				kirimdataUser = { 
 					mutasiAkun: user.kondisi, 
-					updateBy: user.idUser 
+					updateBy: user.createupdateBy 
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
 			}else{
@@ -2217,7 +2231,7 @@ function importExcel (models) {
 							password: hashPassword,
 							kataSandi: encrypt(convertDate3(str.tanggalLahir)),
 							statusAktif: 1,
-							createBy: ksuid,
+							createBy: body.createupdateBy,
 						}
 						kirimdataUserDetail = {
 							idUser: ksuid,
@@ -2284,6 +2298,19 @@ function importExcel (models) {
 							transportasi: str.transportasi,
 						}
 
+						const dataCMS = await models.CMSSetting.findAll();
+
+						const cms_setting = {}
+						dataCMS.forEach(str => {
+							let eva = JSON.parse(str.setting)
+							if(eva.label){
+								cms_setting[str.kode] = eva
+							}else{
+								cms_setting[str.kode] = eva.value
+							}
+						})
+						let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+
 						let dataMengajar = await _allOption({ table: models.Mengajar })
 						let kirimdataNilai = []
 						await dataMengajar.map(str => {
@@ -2292,6 +2319,7 @@ function importExcel (models) {
 								mapel: str.label,
 								dataNilai: JSON.stringify([
 									{
+										semester,
 										nilai: {
 											tugas1: 0,
 											tugas2: 0,
