@@ -455,6 +455,24 @@ function crudRoleMenu (models) {
   }  
 }
 
+function getNotifikasi (models) {
+	return async (req, res, next) => {
+	  let { limit = 5 } = req.query
+    try {
+			const { userID } = req.JWTDecoded
+			const datanotifikasi = await models.Notifikasi.findAll({
+				where: { idUser: userID, isRead: false },
+				order: [['createdAt','DESC']],
+				limit: parseInt(limit),
+			});
+
+			return OK(res, datanotifikasi);
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+  }
+
 function getCMSSetting (models) {
   return async (req, res, next) => {
     try {
@@ -787,6 +805,7 @@ module.exports = {
   crudRole,
   getRoleMenu,
   crudRoleMenu,
+  getNotifikasi,
   getCMSSetting,
   crudCMSSetting,
   optionsMenu,

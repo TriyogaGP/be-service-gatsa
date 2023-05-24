@@ -12,6 +12,7 @@ const {
   crudRole,
   getRoleMenu,
   crudRoleMenu,
+  getNotifikasi,
   getCMSSetting,
   crudCMSSetting,
   optionsMenu,
@@ -62,6 +63,9 @@ module.exports = models => {
   
   route.route('/testing').get(testing(models))
 
+  route.route('/Notifikasi')
+    .get(verifyToken, getNotifikasi(models))
+    // .post(crudMenu(models))
   route.route('/Menu')
     .get(verifyToken, getMenu(models))
     .post(crudMenu(models))

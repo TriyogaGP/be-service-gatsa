@@ -62,13 +62,18 @@ function login (models) {
 
 			const match = await bcrypt.compare(password, data.password);
 			if(!match) return NOT_FOUND(res, 'Kata Sandi tidak sesuai !');
-			const userID = data.idUser;
-			const nama = data.nama;
-			const email = data.email;
-			const accessToken = jwt.sign({userID, nama, email}, process.env.ACCESS_TOKEN_SECRET, {
+			const dataJWT = {
+				userID: data.idUser,
+				consumerType: data.consumerType,
+				namaRole: data.Role.namaRole,
+				username: data.username,
+				nama: data.nama,
+				email: data.email,
+			}
+			const accessToken = jwt.sign(dataJWT, process.env.ACCESS_TOKEN_SECRET, {
 					expiresIn: '12h'
 			});
-			const refreshToken = jwt.sign({userID, nama, email}, process.env.REFRESH_TOKEN_SECRET, {
+			const refreshToken = jwt.sign(dataJWT, process.env.REFRESH_TOKEN_SECRET, {
 					expiresIn: '1d'
 			});
 
@@ -85,7 +90,7 @@ function forgotPass (models) {
   return async (req, res, next) => {
 		let { email } = req.body
     try {
-			const data = await models.Admin.findOne({
+			const data = await models.User.findOne({
 				where: {
 					statusAktif: true,
 					email: email
@@ -107,7 +112,7 @@ function forgotPass (models) {
 			<ul>`;
 			html += `<li>Nama Lengkap : ${data.nama}</li>
 				<li>Alamat Email : ${data.email}</li>
-				<li>Username : ${content == 'Admin' ? data.username : 'tidak ada username'}</li>
+				<li>Username : ${data.username}</li>
 				<li>Kata Sandi : ${decrypt(data.kataSandi)}</li>
 			</ul>
 			Harap informasi ini jangan di hapus karena informasi ini penting adanya. Terimakasih. <br>Jika Anda memiliki pertanyaan, silakan balas email ini`;

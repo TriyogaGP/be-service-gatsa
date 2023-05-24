@@ -184,6 +184,7 @@ function postAdmin (models) {
 		let { user, userdetail } = req.body
 		let where = {}
     try {
+			const { userID } = req.JWTDecoded
 			let salt, hashPassword, kirimdataUser, kirimdataUserDetail;
 			if(user.jenis == 'ADD'){
 				where = { 
@@ -207,7 +208,7 @@ function postAdmin (models) {
 					password: hashPassword,
 					kataSandi: encrypt(user.password),
 					statusAktif: 1,
-					createBy: user.idUser,
+					createBy: userID,
 				}
 				kirimdataUserDetail = {
 					idUser: user.idUser,
@@ -244,7 +245,7 @@ function postAdmin (models) {
 					password: hashPassword,
 					kataSandi: data.kataSandi == user.password ? user.password : encrypt(user.password),
 					statusAktif: 1,
-					updateBy: user.idUser,
+					updateBy: userID,
 				}
 				kirimdataUserDetail = {
 					tempat: userdetail.tempat,
@@ -266,14 +267,14 @@ function postAdmin (models) {
 			}else if(user.jenis == 'DELETE'){
 				kirimdataUser = {
 					statusAktif: 0,
-					deleteBy: user.idUser,
+					deleteBy: userID,
 					deletedAt: new Date(),
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })	
 			}else if(user.jenis == 'STATUSRECORD'){
 				kirimdataUser = { 
 					statusAktif: user.kondisi, 
-					updateBy: user.idUser 
+					updateBy: userID
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
 			}else{
@@ -436,6 +437,7 @@ function postStruktural (models) {
 		let { user, userdetail } = req.body
 		let where = {}
     try {
+			const { userID } = req.JWTDecoded
 			let salt, hashPassword, kirimdataUser, kirimdataUserDetail;
 			if(user.jenis == 'ADD'){
 				where = { 
@@ -467,7 +469,7 @@ function postStruktural (models) {
 					password: hashPassword,
 					kataSandi: encrypt(user.password),
 					statusAktif: 1,
-					createBy: user.idUser,
+					createBy: userID,
 				}
 				kirimdataUserDetail = {
 					idUser: user.idUser,
@@ -550,7 +552,7 @@ function postStruktural (models) {
 					password: hashPassword,
 					kataSandi: data.kataSandi == user.password ? user.password : encrypt(user.password),
 					statusAktif: 1,
-					updateBy: user.idUser,
+					updateBy: userID,
 				}
 				kirimdataUserDetail = {
 					nomorInduk: userdetail.nomorInduk,
@@ -627,14 +629,14 @@ function postStruktural (models) {
 			}else if(user.jenis == 'DELETE'){
 				kirimdataUser = {
 					statusAktif: 0,
-					deleteBy: user.idUser,
+					deleteBy: userID,
 					deletedAt: new Date(),
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })	
 			}else if(user.jenis == 'STATUSRECORD'){
 				kirimdataUser = { 
 					statusAktif: user.kondisi, 
-					updateBy: user.idUser 
+					updateBy: userID 
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
 			}else{
@@ -945,6 +947,7 @@ function postSiswaSiswi (models) {
 		let { user, userdetail } = req.body
 		let where = {}
     try {
+			const { userID } = req.JWTDecoded
 			let salt, hashPassword, kirimdataUser, kirimdataUserDetail;
 			if(user.jenis == 'ADD'){
 				where = { 
@@ -976,7 +979,7 @@ function postSiswaSiswi (models) {
 					password: hashPassword,
 					kataSandi: encrypt(user.password),
 					statusAktif: 1,
-					createBy: user.createupdateBy,
+					createBy: userID,
 				}
 				kirimdataUserDetail = {
 					idUser: user.idUser,
@@ -1116,7 +1119,7 @@ function postSiswaSiswi (models) {
 					password: hashPassword,
 					kataSandi: data.kataSandi == user.password ? user.password : encrypt(user.password),
 					statusAktif: 1,
-					updateBy: user.createupdateBy,
+					updateBy: userID,
 				}
 				kirimdataUserDetail = {
 					nikSiswa: userdetail.nikSiswa,
@@ -1188,26 +1191,26 @@ function postSiswaSiswi (models) {
 			}else if(user.jenis == 'DELETE'){
 				kirimdataUser = {
 					statusAktif: 0,
-					deleteBy: user.deleteBy,
+					deleteBy: userID,
 					deletedAt: new Date(),
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })	
 			}else if(user.jenis == 'STATUSRECORD'){
 				kirimdataUser = { 
 					statusAktif: user.kondisi, 
-					updateBy: user.createupdateBy 
+					updateBy: userID 
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
 			}else if(user.jenis == 'VALIDASIAKUN'){
 				kirimdataUser = { 
 					validasiAkun: user.kondisi, 
-					updateBy: user.createupdateBy 
+					updateBy: userID
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
 			}else if(user.jenis == 'MUTASIAKUN'){
 				kirimdataUser = { 
 					mutasiAkun: user.kondisi, 
-					updateBy: user.createupdateBy 
+					updateBy: userID
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
 			}else{
@@ -2364,7 +2367,7 @@ function importExcel (models) {
 
 function exportExcel (models) {
 	return async (req, res, next) => {
-		let { kelas } = req.query
+		let { kelas, kategori } = req.query
 	  try {
 			let workbook = new excel.Workbook();
 			let split = kelas.split(', ')
@@ -2429,17 +2432,17 @@ function exportExcel (models) {
 						tempat: val.UserDetail.tempat,
 						tanggalLahir: val.UserDetail.tanggalLahir,
 						jenisKelamin: val.UserDetail.jenisKelamin,
-						agama: val.UserDetail.agama ? agama.label : null,
+						agama: val.UserDetail.agama ? kategori === 'full' ? agama.label : agama.kode : null,
 						anakKe: val.UserDetail.anakKe,
 						jumlahSaudara: val.UserDetail.jumlahSaudara,
-						hobi: val.UserDetail.hobi ? hobi.label : null,
-						citaCita: val.UserDetail.citaCita ? cita_cita.label : null,
-						jenjang: val.UserDetail.jenjang ? jenjang.label : null,
-						statusSekolah: val.UserDetail.statusSekolah ? status_sekolah.label : null,
+						hobi: val.UserDetail.hobi ? kategori === 'full' ? hobi.label : hobi.kode : null,
+						citaCita: val.UserDetail.citaCita ? kategori === 'full' ? cita_cita.label : cita_cita.kode : null,
+						jenjang: val.UserDetail.jenjang ? kategori === 'full' ? jenjang.label : jenjang.kode : null,
+						statusSekolah: val.UserDetail.statusSekolah ? kategori === 'full' ? status_sekolah.label : status_sekolah.kode : null,
 						namaSekolah: val.UserDetail.namaSekolah,
 						npsn: val.UserDetail.npsn,
 						alamatSekolah: val.UserDetail.alamatSekolah,
-						kabkotSekolah: val.UserDetail.kabkotSekolah ? uppercaseLetterFirst2(kabkota_sekolah.nama) : null,
+						kabkotSekolah: val.UserDetail.kabkotSekolah ? kategori === 'full' ? uppercaseLetterFirst2(kabkota_sekolah.nama) : kabkota_sekolah.kode : null,
 						noPesertaUN: val.UserDetail.noPesertaUN,
 						noSKHUN: val.UserDetail.noSKHUN,
 						noIjazah: val.UserDetail.noIjazah,
@@ -2448,40 +2451,186 @@ function exportExcel (models) {
 						namaKK: val.UserDetail.namaKK,
 						namaAyah: val.UserDetail.namaAyah,
 						tahunAyah: val.UserDetail.tahunAyah,
-						statusAyah: val.UserDetail.statusAyah ? status_ayah.label : null,
+						statusAyah: val.UserDetail.statusAyah ? kategori === 'full' ? status_ayah.label : status_ayah.kode : null,
 						nikAyah: val.UserDetail.nikAyah,
-						pendidikanAyah: val.UserDetail.pendidikanAyah ? pendidikan_ayah.label : null,
-						pekerjaanAyah: val.UserDetail.pekerjaanAyah ? pekerjaan_ayah.label : null,
+						pendidikanAyah: val.UserDetail.pendidikanAyah ? kategori === 'full' ? pendidikan_ayah.label : pendidikan_ayah.kode : null,
+						pekerjaanAyah: val.UserDetail.pekerjaanAyah ? kategori === 'full' ? pekerjaan_ayah.label : pekerjaan_ayah.kode : null,
 						telpAyah: val.UserDetail.telpAyah,
 						namaIbu: val.UserDetail.namaIbu,
 						tahunIbu: val.UserDetail.tahunIbu,
-						statusIbu: val.UserDetail.statusIbu ? status_ibu.label : null,
+						statusIbu: val.UserDetail.statusIbu ? kategori === 'full' ? status_ibu.label : status_ibu.kode : null,
 						nikIbu: val.UserDetail.nikIbu,
-						pendidikanIbu: val.UserDetail.pendidikanIbu ? pendidikan_ibu.label : null,
-						pekerjaanIbu: val.UserDetail.pekerjaanIbu ? pekerjaan_ibu.label : null,
+						pendidikanIbu: val.UserDetail.pendidikanIbu ? kategori === 'full' ? pendidikan_ibu.label : pendidikan_ibu.kode : null,
+						pekerjaanIbu: val.UserDetail.pekerjaanIbu ? kategori === 'full' ? pekerjaan_ibu.label : pekerjaan_ibu.kode : null,
 						telpIbu: val.UserDetail.telpIbu,
 						namaWali: val.UserDetail.namaWali,
 						tahunWali: val.UserDetail.tahunWali,
 						nikWali: val.UserDetail.nikWali,
-						pendidikanWali: val.UserDetail.pendidikanWali ? pendidikan_wali.label : null,
-						pekerjaanWali: val.UserDetail.pekerjaanWali ? pekerjaan_wali.label : null,
+						pendidikanWali: val.UserDetail.pendidikanWali ? kategori === 'full' ? pendidikan_wali.label : pendidikan_wali.kode : null,
+						pekerjaanWali: val.UserDetail.pekerjaanWali ? kategori === 'full' ? pekerjaan_wali.label : pekerjaan_wali.kode : null,
 						telpWali: val.UserDetail.telpWali,
-						penghasilan: val.UserDetail.penghasilan ? penghasilan.label : null,
+						penghasilan: val.UserDetail.penghasilan ? kategori === 'full' ? penghasilan.label : penghasilan.kode : null,
 						telp: val.UserDetail.telp,
 						alamat: val.UserDetail.alamat,
-						provinsi: val.UserDetail.provinsi ? uppercaseLetterFirst2(provinsi.nama) : null,
-						kabKota: val.UserDetail.kabKota ? uppercaseLetterFirst2(kabkota.nama) : null,
-						kecamatan: val.UserDetail.kecamatan ? uppercaseLetterFirst2(kecamatan.nama) : null,
-						kelurahan: val.UserDetail.kelurahan ? uppercaseLetterFirst2(kelurahan.nama) : null,
+						provinsi: val.UserDetail.provinsi ? kategori === 'full' ? uppercaseLetterFirst2(provinsi.nama) : provinsi.kode : null,
+						kabKota: val.UserDetail.kabKota ? kategori === 'full' ? uppercaseLetterFirst2(kabkota.nama) : kabkota.kode : null,
+						kecamatan: val.UserDetail.kecamatan ? kategori === 'full' ? uppercaseLetterFirst2(kecamatan.nama) : kecamatan.kode : null,
+						kelurahan: val.UserDetail.kelurahan ? kategori === 'full' ? uppercaseLetterFirst2(kelurahan.nama) : kelurahan.kode : null,
 						kodePos: val.UserDetail.kodePos,
 						kelas: val.UserDetail.kelas,
-						statusTempatTinggal: val.UserDetail.statusTempatTinggal ? status_tempat_tinggal.label : null,
-						jarakRumah: val.UserDetail.jarakRumah ? jarak_rumah.label : null,
-						transportasi: val.UserDetail.transportasi ? transportasi.label : null,
+						statusTempatTinggal: val.UserDetail.statusTempatTinggal ? kategori === 'full' ? status_tempat_tinggal.label : status_tempat_tinggal.kode : null,
+						jarakRumah: val.UserDetail.jarakRumah ? kategori === 'full' ? jarak_rumah.label : jarak_rumah.kode : null,
+						transportasi: val.UserDetail.transportasi ? kategori === 'full' ? transportasi.label : transportasi.kode : null,
 					}
 				}))
 	
 				let worksheet = workbook.addWorksheet(`Kelas ${split[index]}`);
+				if(kategori === 'emis'){
+					let worksheetAgama = workbook.addWorksheet("Agama");
+					let worksheetHobi = workbook.addWorksheet("Hobi");
+					let worksheetCitaCita = workbook.addWorksheet("Cita - Cita");
+					let worksheetJenjangSekolah = workbook.addWorksheet("Jenjang Sekolah");
+					let worksheetStatusSekolah = workbook.addWorksheet("Status Sekolah");
+					let worksheetStatusOrangTua = workbook.addWorksheet("Status Orang Tua");
+					let worksheetPendidikan = workbook.addWorksheet("Pendidikan");
+					let worksheetPekerjaan = workbook.addWorksheet("Pekerjaan");
+					let worksheetStatusTempatTinggal = workbook.addWorksheet("Status Tempat Tinggal");
+					let worksheetJarakRumah = workbook.addWorksheet("Jarak Rumah");
+					let worksheetAlatTransportasi = workbook.addWorksheet("Alat Transportasi");
+					let worksheetPenghasilan = workbook.addWorksheet("Penghasilan");
+
+					//Pil Agama
+					worksheetAgama.columns = [
+						{ header: "KODE", key: "kode", width: 15 },
+						{ header: "LABEL", key: "label", width: 15 }
+					];
+					const figureColumnsAgama = [1, 2];
+					figureColumnsAgama.forEach((i) => {
+						worksheetAgama.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetAgama.addRows(await _allOption({ table: models.Agama }));
+
+					//Pil Hobi
+					worksheetHobi.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsHobi = [1, 2];
+					figureColumnsHobi.forEach((i) => {
+						worksheetHobi.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetHobi.addRows(await _allOption({ table: models.Hobi }));
+
+					//Pil CitaCita
+					worksheetCitaCita.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsCitaCita = [1, 2];
+					figureColumnsCitaCita.forEach((i) => {
+						worksheetCitaCita.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetCitaCita.addRows(await _allOption({ table: models.CitaCita }));
+
+					//Pil JenjangSekolah
+					worksheetJenjangSekolah.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsJenjangSekolah = [1, 2];
+					figureColumnsJenjangSekolah.forEach((i) => {
+						worksheetJenjangSekolah.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetJenjangSekolah.addRows(await _allOption({ table: models.JenjangSekolah }));
+
+					//Pil StatusSekolah
+					worksheetStatusSekolah.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsStatusSekolah = [1, 2];
+					figureColumnsStatusSekolah.forEach((i) => {
+						worksheetStatusSekolah.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetStatusSekolah.addRows(await _allOption({ table: models.StatusSekolah }));
+
+					//Pil StatusOrangTua
+					worksheetStatusOrangTua.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsStatusOrangTua = [1, 2];
+					figureColumnsStatusOrangTua.forEach((i) => {
+						worksheetStatusOrangTua.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetStatusOrangTua.addRows(await _allOption({ table: models.StatusOrangtua }));
+
+					//Pil Pendidikan
+					worksheetPendidikan.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsPendidikan = [1, 2];
+					figureColumnsPendidikan.forEach((i) => {
+						worksheetPendidikan.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetPendidikan.addRows(await _allOption({ table: models.Pendidikan }));
+
+					//Pil Pekerjaan
+					worksheetPekerjaan.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsPekerjaan = [1, 2];
+					figureColumnsPekerjaan.forEach((i) => {
+						worksheetPekerjaan.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetPekerjaan.addRows(await _allOption({ table: models.Pekerjaan }));
+
+					//Pil StatusTempatTinggal
+					worksheetStatusTempatTinggal.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsStatusTempatTinggal = [1, 2];
+					figureColumnsStatusTempatTinggal.forEach((i) => {
+						worksheetStatusTempatTinggal.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetStatusTempatTinggal.addRows(await _allOption({ table: models.StatusTempatTinggal }));
+
+					//Pil JarakRumah
+					worksheetJarakRumah.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsJarakRumah = [1, 2];
+					figureColumnsJarakRumah.forEach((i) => {
+						worksheetJarakRumah.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetJarakRumah.addRows(await _allOption({ table: models.JarakRumah }));
+
+					//Pil AlatTransportasi
+					worksheetAlatTransportasi.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsAlatTransportasi = [1, 2];
+					figureColumnsAlatTransportasi.forEach((i) => {
+						worksheetAlatTransportasi.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetAlatTransportasi.addRows(await _allOption({ table: models.Transportasi }));
+
+					//Pil Penghasilan
+					worksheetPenghasilan.columns = [
+						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "LABEL", key: "label", width: 50 }
+					];
+					const figureColumnsPenghasilan = [1, 2];
+					figureColumnsPenghasilan.forEach((i) => {
+						worksheetPenghasilan.getColumn(i).alignment = { horizontal: "left" };
+					});
+					worksheetPenghasilan.addRows(await _allOption({ table: models.Penghasilan }));
+				}
 
 				//Data Siswa
 				worksheet.columns = [
