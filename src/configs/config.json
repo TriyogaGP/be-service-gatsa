@@ -1,0 +1,26 @@
+{
+    "development": {
+      "username": "userrootwin",
+      "password": "userrootwin",
+      "database": "db_gatsa_web",
+      "host": "localhost",
+      "port": "3306",
+      "dialect": "mysql"
+    },
+    "staging": {
+      "username": "userrootwin",
+      "password": "userrootwin",
+      "database": "db_gatsa_web",
+      "host": "host.docker.internal",
+      "port": "3306",
+      "dialect": "mysql"
+    },
+    "production": {
+      "username": "yoga",
+      "password": "Pass@word1",
+      "database": "gatsa",
+      "host": "103.186.0.54",
+      "port": "3306",
+      "dialect": "mysql"
+    }
+  }

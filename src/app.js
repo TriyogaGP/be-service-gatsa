@@ -148,7 +148,7 @@ try {
   //   userActiveMember.start();
   //   userActiveCustomer.start();
 
-  const PORT = process.env.PORT || 5100;
+  const PORT = process.env.PORT;
   server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}.`);
   });
