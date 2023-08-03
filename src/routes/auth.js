@@ -6,6 +6,7 @@ const {
   ubahKataSandi,
   ubahProfile,
   profile,
+  logout,
 } = require('../controllers/auth.controller')
 
 module.exports = models => {
@@ -16,6 +17,7 @@ module.exports = models => {
   route.route('/ubah-katasandi').post(ubahKataSandi(models))
   route.route('/ubah-profile').post(ubahProfile(models))
   route.route('/profile/:idUser').put(profile(models))
+  route.route('/logout/:idUser').get(verifyToken, logout(models))
   
   return route;
 }

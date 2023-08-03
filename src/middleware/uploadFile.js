@@ -13,7 +13,7 @@ const storage = multer.diskStorage({
 			// console.log(path_dir);
 			// process.exit()
 			if (!fs.existsSync(path_dir)) {
-				fs.mkdirSync(path_dir, 0777);
+				fs.mkdirSync(path_dir);
 			}else{
 				fs.readdirSync(path_dir, { withFileTypes: true });
 			};

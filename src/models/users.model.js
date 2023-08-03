@@ -45,6 +45,11 @@ const UserScheme = Sequelize => {
       allowNull: true,
       field: 'status_aktif',
     },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      field: 'is_active',
+    },
     validasiAkun: {
       type: DataTypes.BOOLEAN,
       allowNull: true,

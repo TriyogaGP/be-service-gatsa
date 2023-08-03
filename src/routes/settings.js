@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const {
   updateFile,
+  updateBerkas,
   getUID,
   getEncrypt,
   getDecrypt,
@@ -12,9 +13,14 @@ const {
   crudRole,
   getRoleMenu,
   crudRoleMenu,
+  getKategoriNotifikasi,
   getNotifikasi,
+  getCountNotifikasi,
+  crudNotifikasi,
   getCMSSetting,
   crudCMSSetting,
+  getBerkas,
+  crudBerkas,
   optionsMenu,
   optionsAgama,
   optionsHobi,
@@ -31,6 +37,8 @@ const {
   optionsJarakRumah,
   optionsTransportasi,
   optionsWilayah,
+  optionsBerkas,
+  getUserBroadcast,
   testing,
 } = require('../controllers/settings.controler')
 const { uploadFile } = require('../middleware/uploadFile')
@@ -58,14 +66,22 @@ module.exports = models => {
   route.route('/optionsJarakRumah').get(optionsJarakRumah(models))
   route.route('/optionsTransportasi').get(optionsTransportasi(models))
   route.route('/optionsWilayah').get(optionsWilayah(models))
+  route.route('/optionsBerkas').get(optionsBerkas(models))
   
   route.route('/updateFile').post(uploadFile, updateFile(models))
+  route.route('/updateBerkas').post(uploadBerkas, updateBerkas(models))
   
   route.route('/testing').get(testing(models))
 
+  route.route('/kategoriNotifikasi')
+    .get(verifyToken, getKategoriNotifikasi(models))
+  route.route('/dataUserBroadcast')
+    .get(verifyToken, getUserBroadcast(models))
   route.route('/Notifikasi')
     .get(verifyToken, getNotifikasi(models))
-    // .post(crudMenu(models))
+    .post(verifyToken, crudNotifikasi(models))
+  route.route('/countNotifikasi')
+      .get(verifyToken, getCountNotifikasi(models))
   route.route('/Menu')
     .get(verifyToken, getMenu(models))
     .post(crudMenu(models))
@@ -81,6 +97,9 @@ module.exports = models => {
   route.route('/cmssetting')
     .get(getCMSSetting(models))
     .put(crudCMSSetting(models))
+  route.route('/Berkas')
+    .get(verifyToken, getBerkas(models))
+    .post(crudBerkas(models))
   
   return route;
 }

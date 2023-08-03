@@ -20,6 +20,7 @@ const {
   exportExcel,
   pdfCreate,
   pdfCreateRaport,
+  listSiswaSiswi,
   testing,
 } = require('../controllers/user.controller')
 const { uploadFile } = require('../middleware/uploadFile')
@@ -66,6 +67,9 @@ module.exports = models => {
     .get(verifyToken, pdfCreate(models))
   route.route('/pdfcreate-raport/:uid')
     .get(verifyToken, pdfCreateRaport(models))
+
+  route.route('/list-siswasiswi')
+    .get(listSiswaSiswi(models))
 
   route.route('/testing')
     .post(testing(models))

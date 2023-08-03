@@ -16,7 +16,7 @@ const NotifikasiScheme = Sequelize => {
       field: 'id_user',
     },
     type: {
-      type: DataTypes.STRING(20),
+      type: DataTypes.STRING(256),
       allowNull: true,
       field: 'type',
     },
@@ -35,10 +35,26 @@ const NotifikasiScheme = Sequelize => {
       allowNull: true,
       field: 'params',
     },
+    tautan: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'tautan',
+    },
+    dikirim: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'dikirim',
+    },
     isRead: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
+      default: '0',
       field: 'is_read',
+    },
+    createBy: {
+			type: DataTypes.STRING(32),
+			allowNull: true,
+			field: 'create_by'
     },
     createdAt: {
       type: DataTypes.DATE,

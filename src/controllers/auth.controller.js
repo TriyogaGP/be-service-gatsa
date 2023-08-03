@@ -77,6 +77,9 @@ function login (models) {
 					expiresIn: '1d'
 			});
 
+			data.isActive = 1
+			data.updateBy = dataJWT.userID
+			data.save()
 			let result = await _buildResponseUser(data, refreshToken, accessToken)
 
 			return OK(res, result, `Selamat Datang ${result.nama} sebagai ${result.namaRole}`)
@@ -249,10 +252,23 @@ function profile (models) {
   }  
 }
 
+function logout (models) {
+  return async (req, res, next) => {
+		let { idUser } = req.params
+		try {
+			await models.User.update({ isActive: 0, updateBy: idUser }, { where: { idUser: idUser } })
+			return OK(res)
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
 module.exports = {
   login,
 	forgotPass,
   ubahKataSandi,
   ubahProfile,
   profile,
+  logout,
 }

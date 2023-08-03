@@ -1,0 +1,71 @@
+- Kredivo
+  -- 66.680 x 7 = 466.760 (17/07-12)
+  -- 590.860 x 2 = 1.181.720 (29/06-07)
+  -- 134.460 x 5 = 672.300 (07/07-11)
+
+- Kredit Pintar 1.385.610 (25/06)
+- Pinjam Duit 67.073 (14/08)
+- Julo 1.020.000 x 3 = 3.060.000 (29/06-08)
+- Easy Cash 666.000 x 4 = 2.664.000 (12/06-07 - 27/06-07)
+
+- Rida 	1.000.000 = 250 x 4
+- Dimas 	1.000.000 = 250 x 4
+- Pahmi 	1.500.000 = 250 x 6
+- Leon 	2.000.000 = 250 x 8
+- Ucup 	1.500.000 = 250 x 6
+- Adit 	1.000.000 = 250 x 4
+Total Pinjam 8.000.000
+Total 1.500.000
+
+Bulan depan Juni 06 :
+- 1.020.000 (Julo)
+- 1.332.000 (Easy Cash)
+-   590.860 (Kredivo)
+-   134.460 (Kredivo)
+-    66.680 (Kredivo)
+- 1.385.610 (Kredit Pintar)
+- 1.000.000 (Pinjam Temen)
+Total 5.279.610 + 250.000
+
+Bulan Juli 07 :
+- 1.020.000 (Julo)
+- 1.332.000 (Easy Cash)
+-   590.860 (Kredivo)
+-   134.460 (Kredivo)
+-    66.680 (Kredivo)
+-    67.073 (Pinjam Duit)
+- 1.000.000 (Pinjam Temen)
+Total 3.961.073 + 250.000
+
+Bulan Agustus 08 :
+- 1.020.000 (Julo)
+-   134.460 (Kredivo)
+-    66.680 (Kredivo)
+- 1.000.000 (Pinjam Temen)
+Total 1.971.140 + 250.000
+
+Bulan September 09 :
+-   134.460 (Kredivo)
+-    66.680 (Kredivo)
+- 1.000.000 (Pinjam Temen)
+Total 951.140 + 250.000
+
+Bulan Oktober 10 :
+- 134.460 (Kredivo)
+-  66.680 (Kredivo)
+- 500.000 (Pinjam Temen)
+Total 451.140 + 250.000
+
+Bulan November 11 :
+-  66.680 (Kredivo)
+- 500.000 (Pinjam Temen)
+Total 316.680 + 250.000
+
+Bulan Desember 12 :
+-  66.680 (Kredivo)
+- 250.000 (Pinjam Temen)
+Total 66.680 + 250.000
+
+Bulan Desember 12 :
+- 250.000 (Pinjam Temen)
+Total 250.000

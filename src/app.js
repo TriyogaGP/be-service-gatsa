@@ -54,6 +54,45 @@ try {
   
   app.use(swagger());
 
+  const {
+    getUserOnline,
+    hitungPercapakan,
+    checkRoom,
+    getPercakapan,
+    insertPesan,
+    updateReadChat,
+  } = require("./utils/socketIO-utils");
+
+  // SocketIO
+  io.on("connection", (socket) => {
+    console.log(`Socket.IO connected ${socket.id}`);
+
+    socket.on("dataonline", async () => {
+      const dataOnline = await getUserOnline();
+      // const jml = await hitungPercapakan();
+      let hasilData = await Promise.all(dataOnline.map(async val => {
+        return {
+          ...val,
+          jmlBadge: 0,
+        }
+      }))
+      io.emit("dataonline", hasilData);
+    });
+
+    socket.on("percakapan", async (from, to, role) => {
+      const room = await checkRoom(from, to, role);
+      await updateReadChat(room, to);
+      const dataPercakapan = await getPercakapan(room);
+      io.emit("percakapan", { dataPercakapan, room });
+    });
+
+    socket.on("send-message", async (data) => {
+      await insertPesan(data);
+      const dataPercakapan = await getPercakapan(data.room);
+      io.emit("percakapan", { dataPercakapan, room: data.room });
+    });
+  });
+
   // //cron job
   //   const { cronTransaksi, cronTransaksiDaily, cronUserActive } = require('./utils/cron.utils')
   //   //transaksi

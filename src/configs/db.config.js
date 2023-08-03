@@ -26,6 +26,7 @@ const sequelizeInstance = new Sequelize(config.DB, config.USER, config.PASSWORD,
           return next()
         },
     },
+    logging: false,
     timezone: '+07:00'
 });
  

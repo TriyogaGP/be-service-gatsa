@@ -47,7 +47,8 @@ function _buildResponseUser(dataUser, refreshToken, accessToken) {
 		waliKelas: dataUser.UserDetail.waliKelas,
 		kelas: dataUser.UserDetail.kelas,
 		fotoProfil: dataUser.UserDetail.fotoProfil ? `${BASE_URL}image/${dataUser.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
-		statusAktif: true,
+		isActive: dataUser.isActive,
+		statusAktif: dataUser.statusAktif,
 		refreshToken,
 		accessToken
 	}
@@ -75,6 +76,7 @@ async function _buildResponseAdmin(models, dataAdmin) {
 		kelurahan: dataAdmin.UserDetail.kelurahan ? await _wilayahOption({ models, kode: dataAdmin.UserDetail.kelurahan }) : null,
 		kodePos: dataAdmin.UserDetail.kodePos,
 		fotoProfil: dataAdmin.UserDetail.fotoProfil ? `${BASE_URL}image/${dataAdmin.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+		isActive: dataAdmin.isActive,
 		statusAktif: dataAdmin.statusAktif,
 	}
 }
@@ -107,6 +109,7 @@ async function _buildResponseStruktural(models, dataStruktural) {
 		mengajarKelas: dataStruktural.UserDetail.mengajarKelas,
 		waliKelas: dataStruktural.UserDetail.waliKelas,
 		fotoProfil: dataStruktural.UserDetail.fotoProfil ? `${BASE_URL}image/${dataStruktural.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+		isActive: dataStruktural.isActive,
 		statusAktif: dataStruktural.statusAktif,
 	}
 }
@@ -200,6 +203,7 @@ async function _buildResponseSiswaSiswi(models, dataSiswaSiswi) {
 		},
 		mutasiAkun: dataSiswaSiswi.mutasiAkun,
 		validasiAkun: dataSiswaSiswi.validasiAkun,
+		isActive: dataSiswaSiswi.isActive,
 		statusAktif: dataSiswaSiswi.statusAktif,
 	}
 }

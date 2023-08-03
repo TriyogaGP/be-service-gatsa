@@ -112,6 +112,7 @@ function getAdmin (models) {
 					kelurahan: val.UserDetail.kelurahan ? await _wilayahOption({ models, kode: val.UserDetail.kelurahan }) : null,
 					kodePos: val.UserDetail.kodePos,
 					fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+					isActive: val.isActive,
 					statusAktif: val.statusAktif,
 				}
 			}))
@@ -171,6 +172,7 @@ function getAdminbyUid (models) {
 				kelurahan: dataAdmin.UserDetail.kelurahan ? await _wilayahOption({ models, kode: dataAdmin.UserDetail.kelurahan }) : null,
 				kodePos: dataAdmin.UserDetail.kodePos,
 				fotoProfil: dataAdmin.UserDetail.fotoProfil ? `${BASE_URL}image/${dataAdmin.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+				isActive: dataAdmin.isActive,
 				statusAktif: dataAdmin.statusAktif,
 			})
     } catch (err) {
@@ -355,6 +357,7 @@ function getStruktural (models) {
 					mengajarKelas: val.UserDetail.mengajarKelas,
 					waliKelas: val.UserDetail.waliKelas,
 					fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+					isActive: val.isActive,
 					statusAktif: val.statusAktif,
 				}
 			}))
@@ -424,6 +427,7 @@ function getStrukturalbyUid (models) {
 				mengajarKelas: dataStruktural.UserDetail.mengajarKelas,
 				waliKelas: dataStruktural.UserDetail.waliKelas,
 				fotoProfil: dataStruktural.UserDetail.fotoProfil ? `${BASE_URL}image/${dataStruktural.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+				isActive: dataStruktural.isActive,
 				statusAktif: dataStruktural.statusAktif,
 			})
     } catch (err) {
@@ -660,7 +664,7 @@ function getSiswaSiswi (models) {
 			let whereUserDetail = {}
 			let wherePlus = {}
 			if(kelas){
-				whereUserDetail.kelas = kelas
+				whereUserDetail.kelas = kelas.split(', ')
 				wherePlus.mutasiAkun = false
 			}
 
@@ -787,6 +791,7 @@ function getSiswaSiswi (models) {
 					mutasiAkun: val.mutasiAkun,
 					validasiAkun: val.validasiAkun,
 					condition: new Date().getDate() === new Date(val.createdAt).getDate() ? true : false,
+					isActive: val.isActive,
 					statusAktif: val.statusAktif,
 				}
 			}))
@@ -934,6 +939,7 @@ function getSiswaSiswibyUid (models) {
 					jumlahTugas: dataJadwal ? dataJadwal.jumlahTugas : '0',
 					kkm: dataJadwal ? dataJadwal.kkm : '0',
 				},
+				isActive: dataSiswaSiswi.isActive,
 				statusAktif: dataSiswaSiswi.statusAktif,
 			})
     } catch (err) {
@@ -1210,6 +1216,7 @@ function postSiswaSiswi (models) {
 			}else if(user.jenis == 'MUTASIAKUN'){
 				kirimdataUser = { 
 					mutasiAkun: user.kondisi, 
+					statusAktif: 0, 
 					updateBy: userID
 				}
 				await models.User.update(kirimdataUser, { where: { idUser: user.idUser } })
@@ -3038,26 +3045,70 @@ function pdfCreateRaport (models) {
 	}
 }
 
+function listSiswaSiswi (models) {
+	return async (req, res, next) => {
+		let { kelas, keyword } = req.query
+		try {
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ nama : { [Op.like]: `%${keyword}%` }},
+					{ '$UserDetail.nomor_induk$' : { [Op.like]: `%${keyword}%` }},
+				]
+			} : {}
+
+			where = { ...whereKey, isActive: true, mutasiAkun: false, consumerType: 4 }
+
+			const dataSiswaSiswi = await models.User.findAll({
+				where,
+				attributes: ['idUser', 'nama', 'isActive'],
+				include: [
+					{ 
+						model: models.UserDetail,
+						attributes: ['nomorInduk', 'kelas', 'fotoProfil'],
+						where: {
+							kelas: kelas.split(', '),
+						},
+					},
+				],
+				order: [
+					['nama', 'ASC'],
+				],
+			});
+
+			const dataSiswa = await Promise.all(dataSiswaSiswi.map(async val => {
+				return {
+					idUser: val.idUser,
+					nomorInduk: val.UserDetail.nomorInduk,
+					nama: val.nama,
+					kelas: val.UserDetail.kelas,
+					fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+					isActive: val.isActive,
+					statusAktif: val.statusAktif,
+				}
+			}))
+
+			return OK(res, dataSiswa);
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
 function testing (models) {
 	return async (req, res, next) => {
 		try {
-			let textInput = "JAWA BARAT"
-			let regex = /[\!\@\#\$\%\^\&\*\)\(\+\=\.\<\>\{\}\[\]\:\;\'\"\|\~\`\_\-]/g
-			let cek = regex.test(textInput)
-			textInput = textInput.toLowerCase();
-			var stringArray = ''
-			if(cek){
-				stringArray = textInput.split(". ");
-			}else{
-				stringArray = textInput.split(/\b(\s)/);
-			}
-			for (var i = 0; i < stringArray.length; i++) {
-				stringArray[i] =
-					stringArray[i].charAt(0).toUpperCase() +
-					stringArray[i].substring(1);
-			}
-			var finalText = cek ? stringArray.join(". ") : stringArray.join("");
-			return OK(res, finalText)
+			// let payload = {
+			// 	idNotifikasi: await createKSUID(),
+			// 	idUser: '2MMOu7xFdkbe4YFRjpp71fRkV26',
+			// 	type: 'Add Record',
+			// 	judul: 'Menambahkan data Admin',
+			// 	pesan: 'Menambahkan data Admin Tes',
+			// 	params: JSON.stringify({idUser: '2MMOu7xFdkbe4YFRjpp71fRkV26'}),
+			// }
+			// await models.Notifikasi.create(payload)
+
+			// const jml = await models.Notifikasi.count();
+			return OK(res, makeRandom(10))
 		} catch (err) {
 			return NOT_FOUND(res, err.message)
 		}
@@ -3085,5 +3136,6 @@ module.exports = {
   exportExcel,
   pdfCreate,
   pdfCreateRaport,
+  listSiswaSiswi,
   testing,
 }

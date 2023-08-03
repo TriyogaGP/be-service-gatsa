@@ -7,6 +7,7 @@ const {
 const {
 	encrypt,
 	decrypt,
+	convertDateTime,
 	createKSUID,
 	buildMysqlResponseWithPagination
 } = require('../utils/helper.utils')
@@ -34,6 +35,30 @@ function updateFile (models) {
 				body.field == 'skl' ? { fcSKL: body.nama_folder+'/'+body.namaFile } : 
 				{ fotoProfil: body.nama_folder+'/'+body.namaFile }
 				await models.UserDetail.update(kirimdata, { where: { idUser: body.idUser } })
+			}
+			return OK(res, body);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function updateBerkas (models) {
+  return async (req, res, next) => {
+		let namaFile = req.files[0].filename;
+		let body = { ...req.body, namaFile };
+    try {
+			let kirimdata
+			if(body.table == 'Berkas'){
+				kirimdata = { 
+					idBerkas: await createKSUID(),
+					type: body.type,
+					title: body.title,
+					ext: body.ext,
+					statusAktif: 1,
+					file: body.namaFile,
+				}
+				await models.Berkas.create(kirimdata)
 			}
 			return OK(res, body);
     } catch (err) {
@@ -455,23 +480,219 @@ function crudRoleMenu (models) {
   }  
 }
 
-function getNotifikasi (models) {
+function getKategoriNotifikasi (models) {
 	return async (req, res, next) => {
-	  let { limit = 5 } = req.query
     try {
 			const { userID } = req.JWTDecoded
-			const datanotifikasi = await models.Notifikasi.findAll({
+			const datakategori = await models.Notifikasi.findAll({
 				where: { idUser: userID, isRead: false },
 				order: [['createdAt','DESC']],
-				limit: parseInt(limit),
 			});
 
-			return OK(res, datanotifikasi);
+			const result = datakategori.reduce((memo, notifikasi) => {
+				const tmp = memo
+				const { type } = notifikasi
+				if(type === 'Record') tmp.record += 1
+				if(type === 'Report') tmp.report += 1
+				// if(type === 'Broadcast') tmp.broadcast += 1
+				tmp.all += 1
+				return tmp
+			}, {
+				all: 0,
+				record: 0,
+				report: 0,
+				// broadcast: 0,
+			})
+
+			const response = [
+				{
+					kode: '1',
+					text: 'All Notification',
+					count: result.all,
+				},
+				{
+					kode: '2',
+					text: 'Record',
+					count: result.record,
+				},
+				{
+					kode: '3',
+					text: 'Report',
+					count: result.report,
+				},
+				// {
+				// 	kode: '4',
+				// 	text: 'Broadcast',
+				// 	count: result.broadcast,
+				// },
+			]
+
+			return OK(res, response);
 	  } catch (err) {
 			return NOT_FOUND(res, err.message)
 	  }
 	}  
-  }
+}
+
+function getNotifikasi (models) {
+	return async (req, res, next) => {
+	  let { page = 1, limit = 5, kategori, untuk } = req.query
+		let whereUntuk = {}
+    try {
+			const { userID } = req.JWTDecoded
+			if(untuk === 'pengirim'){
+				whereUntuk.createBy = userID
+			}else{
+				whereUntuk.idUser = userID
+			}
+			const type = kategori === '1' ? ['Record', 'Report', 'Broadcast'] : kategori === '2' ? ['Record'] : kategori === '4' ? ['Broadcast'] : ['Report']
+			const offset = limit * (page - 1)
+			const { count, rows: datanotifikasi } = await models.Notifikasi.findAndCountAll({
+				where: { ...whereUntuk, type: type },
+				order: [['createdAt','DESC']],
+				limit: parseInt(limit, 10),
+				offset,
+			});
+
+			const records = await Promise.all(datanotifikasi.map(async val => {
+				const dataBerkas = await models.Berkas.findAll({ where: { idBerkas: JSON.parse(val.dataValues.tautan), statusAktif: true } })
+				const dataUser = await models.User.findOne({ where: { idUser: val.dataValues.idUser } })
+				return {
+					...val.dataValues,
+					pesan: JSON.parse(val.dataValues.pesan),
+					params: JSON.parse(val.dataValues.params),
+					tautan: await dataBerkas.map(k => {
+						return {
+							...k.dataValues,
+							file: `${BASE_URL}berkas/${k.dataValues.file}`
+						}
+					}),
+					tujuan: dataUser.nama,
+					createdAt: convertDateTime(val.dataValues.createdAt),
+				}
+			}))
+
+			const arrangeResponse = () => {
+				const totalPage = Math.ceil(count / limit)
+				const hasNext = totalPage > parseInt(page, 10)
+				const pageSummary = { limit: Number(limit), page: Number(page), hasNext, lastID: '', total: count, totalPage }
+
+				if(count > 0){
+					pageSummary.lastID = datanotifikasi[datanotifikasi.length - 1].idNotifikasi
+					return { records, pageSummary }
+				}
+				return { records: [], pageSummary }
+			}
+
+			return OK(res, arrangeResponse());
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
+function getCountNotifikasi (models) {
+	return async (req, res, next) => {
+    try {
+			const { userID } = req.JWTDecoded
+			const datakategori = await models.Notifikasi.findAll({
+				where: { idUser: userID, isRead: false },
+				order: [['createdAt','DESC']],
+			});
+
+			const result = datakategori.reduce((memo, notifikasi) => {
+				const tmp = memo
+				const { type } = notifikasi
+				if(type === 'Record') tmp.record += 1
+				if(type === 'Report') tmp.report += 1
+				if(type === 'Broadcast') tmp.broadcast += 1
+				tmp.all += 1
+				return tmp
+			}, {
+				all: 0,
+				record: 0,
+				report: 0,
+				broadcast: 0,
+			})
+
+			const response = [
+				{
+					kode: '1',
+					text: 'All Notification',
+					count: result.all,
+				},
+				{
+					kode: '2',
+					text: 'Record',
+					count: result.record,
+				},
+				{
+					kode: '3',
+					text: 'Report',
+					count: result.report,
+				},
+				{
+					kode: '4',
+					text: 'Broadcast',
+					count: result.broadcast,
+				},
+			]
+
+			return OK(res, response);
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
+function crudNotifikasi (models) {
+	return async (req, res, next) => {
+	  let body = { ...req.body }
+    try {
+			const { userID } = req.JWTDecoded
+			if(body.jenis === 'ISREAD'){
+				let payload = {
+					isRead: 1,
+				}
+				await models.Notifikasi.update(payload, { where: { idNotifikasi: body.idNotifikasi } })
+			}else if(body.jenis === 'CREATE'){
+				let payload = {
+					idNotifikasi: await createKSUID(),
+					idUser: body.idUser,
+					type: body.type,
+					judul: body.judul,
+					pesan: body.pesan,
+					params: body.params !== null ? JSON.stringify(body.params) : null,
+					dikirim: body.dikirim,
+					createBy: body.createBy,
+				}
+				await models.Notifikasi.create(payload)
+			}else if(body.jenis === 'BROADCAST'){
+				let payload = []
+				await Promise.all(body.idUser.map(async idUser => {
+					payload.push({
+						idNotifikasi: await createKSUID(),
+						idUser: idUser,
+						type: body.type,
+						judul: body.judul,
+						pesan: body.pesan,
+						params: body.params !== null ? JSON.stringify(body.params) : null,
+						dikirim: body.dikirim,
+						tautan: body.tautan,
+						createBy: body.createBy,
+				})
+				}))
+				// console.log(payload);
+				await models.Notifikasi.bulkCreate(payload)
+			}else if(body.jenis === 'DELETEBROADCAST'){
+				await models.Notifikasi.destroy({ where: { idNotifikasi: body.idNotifikasi } })
+			}
+			return OK(res)
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
 
 function getCMSSetting (models) {
   return async (req, res, next) => {
@@ -521,6 +742,70 @@ function crudCMSSetting (models) {
 				)
 			})
 			return OK(res, mappingData);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getBerkas (models) {
+  return async (req, res, next) => {
+		let { page = 1, limit = 10, keyword } = req.query
+    let where = {}
+		let order = []
+    try {
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			order = [
+				['createdAt', 'DESC'],
+			]
+
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ title : { [Op.like]: `%${keyword}%` }},
+				]
+			} : {}
+
+			where = whereKey
+
+			const { count, rows: dataBerkas } = await models.Berkas.findAndCountAll({
+				where,
+				order,
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+
+			const responseData = buildMysqlResponseWithPagination(
+				await dataBerkas.map(val => {
+					return {
+						...val.dataValues,
+						file: `${BASE_URL}berkas/${val.dataValues.file}`
+					}
+				}),
+				{ limit, page, total: count }
+			)
+
+			return OK(res, responseData);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function crudBerkas (models) {
+  return async (req, res, next) => {
+		let body = { ...req.body }
+		let where = {}
+    try {
+			if(body.jenis == 'STATUSRECORD'){
+				kirimdata = { 
+					statusAktif: body.statusAktif 
+				}
+				await models.Berkas.update(kirimdata, { where: { idBerkas: body.idBerkas } })
+			}else{
+				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			}
+
+			return OK(res);
     } catch (err) {
 			return NOT_FOUND(res, err.message)
     }
@@ -679,8 +964,8 @@ function optionsKelas (models) {
   return async (req, res, next) => {
 		let { kondisi, walikelas } = req.query
     try {
+			const dataKelas = await models.Kelas.findAll({where: {status: true}});
 			if(kondisi === 'Use'){
-				const dataKelas = await models.Kelas.findAll({where: {status: true}});
 				let result = []
 				await Promise.all(dataKelas.map(async str => {
 					const user = await models.UserDetail.findOne({where: {waliKelas: str.dataValues.kelas}});
@@ -697,7 +982,6 @@ function optionsKelas (models) {
 				return OK(res, _.orderBy(result, 'idKelas', 'ASC'));
 			}
 
-      const dataKelas = await models.Kelas.findAll({where: {status: true}});
 			return OK(res, dataKelas);
     } catch (err) {
 			return NOT_FOUND(res, err.message)
@@ -782,6 +1066,142 @@ function optionsWilayah (models) {
   }  
 }
 
+function optionsBerkas (models) {
+  return async (req, res, next) => {
+		const { kategori } = req.query
+		let where = {}
+    try {
+			if(kategori === 'tautan') where = { statusAktif: true }
+      const dataBerkas = await models.Berkas.findAll({ where });
+			let extGBR = [], extFile = []
+			await Promise.all(dataBerkas.map(val => {
+				if(val.dataValues.type === 'Gambar'){
+					extGBR.push({
+						...val.dataValues,
+						file: `${BASE_URL}berkas/${val.dataValues.file}`
+					})
+				}else if(val.dataValues.type === 'File'){
+					extFile.push({
+						...val.dataValues,
+						file: `${BASE_URL}berkas/${val.dataValues.file}`
+					})
+				}
+			}))
+
+			if(extGBR.length && extFile.length){
+				return OK(res, [{header: 'Files'}, ...extFile, {divider: true}, {header: 'Images'}, ...extGBR]);
+			}else if(extGBR.length && !extFile.length){
+				return OK(res, [{header: 'Images'}, ...extGBR]);
+			}else if(!extGBR.length && extFile.length){
+				return OK(res, [{header: 'Files'}, ...extFile]);
+			}
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getUserBroadcast (models) {
+	return async (req, res, next) => {
+		const { kategori, kode } = req.query
+    try {
+			const { consumerType } = req.JWTDecoded
+			const type = consumerType === 1 || consumerType === 2 || (consumerType === 3 && kode === '1') ? [3, 4] : consumerType === 3 ? 4 : 3
+			if(kategori === 'USER'){
+				const dataUser = await models.User.findAll({
+					where: {
+						consumerType: type,
+						statusAktif: true,
+					},
+					include: [
+						{ 
+							model: models.UserDetail,
+						},
+					],
+					order: [
+						[models.UserDetail, 'kelas', 'ASC'],
+						['nama', 'ASC'],
+					],
+				});
+				let pushSiswa = [], pushGuru = []
+				await Promise.all(dataUser.map(async val => {
+					const group = val.consumerType === 3 ? 'Guru' : 'Siswa-Siswi'
+					if(val.consumerType === 3){
+						pushGuru.push({
+							idUser: val.idUser,
+							consumerType: val.consumerType,
+							nama: val.nama,
+							kelas: val.UserDetail.kelas,
+							text: val.consumerType === 3 ? `${val.nama}` : `${val.nama} (${val.UserDetail.kelas})`,
+							value: val.idUser,
+							group,
+							fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+						})
+					}
+					if(val.consumerType === 4){
+						pushSiswa.push({
+							idUser: val.idUser,
+							consumerType: val.consumerType,
+							nama: val.nama,
+							kelas: val.UserDetail.kelas,
+							text: val.consumerType === 3 ? `${val.nama}` : `${val.nama} (${val.UserDetail.kelas})`,
+							value: val.idUser,
+							group,
+							fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+						})
+					}
+				}))
+				if(pushSiswa.length && pushGuru.length){
+					return OK(res, [{header: 'Guru'}, ...pushGuru, {divider: true}, {header: 'Siswa-Siswi'}, ...pushSiswa]);
+				}else if(pushSiswa.length && !pushGuru.length){
+					return OK(res, [{header: 'Siswa-Siswi'}, ...pushSiswa]);
+				}else if(!pushSiswa.length && pushGuru.length){
+					return OK(res, [{header: 'Guru'}, ...pushGuru]);
+				}
+			}else if(kategori === 'KELAS'){
+				const dataKelas = await models.Kelas.findAll({
+					where: {
+						status: true
+					},
+				});
+
+				const dataUser = await Promise.all(dataKelas.map(async val => {
+					const user = await models.User.findAll({
+						where: {
+							consumerType: 4,
+							statusAktif: true,
+						},
+						include: [
+							{ 
+								where: {
+									kelas: val.kelas,
+								},
+								model: models.UserDetail,
+							},
+						],
+						order: [
+							['nama', 'ASC'],
+						],
+					});
+					const result = []
+					await Promise.all(user.map(async val => {
+						result.push(val.idUser)
+						return result
+					}))
+					return {
+						text: val.kelas,
+						value: val.kelas,
+						listUser: result,
+					}
+				}))
+				return OK(res, dataUser);
+			}
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
 function testing (models) {
 	return async (req, res, next) => {
 		try {
@@ -794,6 +1214,7 @@ function testing (models) {
 
 module.exports = {
   updateFile,
+  updateBerkas,
   getUID,
   getEncrypt,
   getDecrypt,
@@ -805,9 +1226,14 @@ module.exports = {
   crudRole,
   getRoleMenu,
   crudRoleMenu,
+  getKategoriNotifikasi,
   getNotifikasi,
+  getCountNotifikasi,
+  crudNotifikasi,
   getCMSSetting,
   crudCMSSetting,
+  getBerkas,
+  crudBerkas,
   optionsMenu,
   optionsAgama,
   optionsHobi,
@@ -824,5 +1250,7 @@ module.exports = {
   optionsJarakRumah,
   optionsTransportasi,
   optionsWilayah,
+  optionsBerkas,
+  getUserBroadcast,
   testing,
 }
