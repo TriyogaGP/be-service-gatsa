@@ -1,5 +1,5 @@
-const { request } = require('../utils/request')
-const { bulanValues } = require('../utils/helper.utils')
+const { request } = require('@triyogagp/backend-common/utils/request.utils')
+const { bulanValues } = require('@triyogagp/backend-common/utils/helper.utils')
 const _ = require("lodash");
 const dayjs = require('dayjs');
 const dotenv = require('dotenv');

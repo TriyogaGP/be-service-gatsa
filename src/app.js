@@ -5,7 +5,8 @@ const settings = require('./routes/settings');
 const user = require('./routes/user');
 const kelas = require('./routes/kelas');
 const { sequelizeInstance, Sequelize } = require('./configs/db.config');
-const { importModels } = require('./models/index')
+// const { importModels } = require('./models/index')
+const { importModels } = require('@triyogagp/backend-common/models/gatsa')
 const models = importModels(sequelizeInstance, Sequelize);
 const { verifyToken } = require('./middleware/VerifyToken');
 const app = express();
@@ -81,7 +82,7 @@ try {
 
     socket.on("percakapan", async (from, to, role) => {
       const room = await checkRoom(from, to, role);
-      await updateReadChat(room, to);
+      // await updateReadChat(room, to);
       const dataPercakapan = await getPercakapan(room);
       io.emit("percakapan", { dataPercakapan, room });
     });

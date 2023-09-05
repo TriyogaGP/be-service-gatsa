@@ -1,4 +1,4 @@
-const { response } = require('../utils/response.utils');
+const { response } = require('@triyogagp/backend-common/utils/response.utils');
 const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv');
 dotenv.config();

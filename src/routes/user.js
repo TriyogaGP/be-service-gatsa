@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const {
+  getDashboard,
   getAdmin,
   getAdminbyUid,
   postAdmin,
@@ -21,6 +22,10 @@ const {
   pdfCreate,
   pdfCreateRaport,
   listSiswaSiswi,
+  getQuestionExam,
+  postQuestionExam,
+  getJadwalExam,
+  postJadwalExam,
   testing,
 } = require('../controllers/user.controller')
 const { uploadFile } = require('../middleware/uploadFile')
@@ -47,6 +52,15 @@ module.exports = models => {
     .post(verifyToken, postSiswaSiswi(models))
   route.route('/siswasiswi/:uid')
     .get(verifyToken, getSiswaSiswibyUid(models))
+  
+  route.route('/question-exam')
+    .get(verifyToken, getQuestionExam(models))
+    .post(verifyToken, postQuestionExam(models))
+    
+  route.route('/jadwal-exam')
+    .get(verifyToken, getJadwalExam(models))  
+    .post(verifyToken, postJadwalExam(models))
+
   route.route('/walikelas')
     .get(verifyToken, getWaliKelas(models))
   route.route('/update-peringkat')
@@ -70,6 +84,9 @@ module.exports = models => {
 
   route.route('/list-siswasiswi')
     .get(listSiswaSiswi(models))
+
+  route.route('/dashboard')
+    .get(verifyToken, getDashboard(models))
 
   route.route('/testing')
     .post(testing(models))

@@ -3,7 +3,7 @@ const {
 	OK,
 	NOT_FOUND,
 	NO_CONTENT
-} = require('../utils/response.utils');
+} = require('@triyogagp/backend-common/utils/response.utils');
 const {
 	encrypt,
 	decrypt,
@@ -16,7 +16,7 @@ const {
 	uppercaseLetterFirst2,
 	buildMysqlResponseWithPagination,
 	paginate
-} = require('../utils/helper.utils');
+} = require('@triyogagp/backend-common/utils/helper.utils');
 const {
 	_allOption,
 	_agamaOption,
@@ -52,6 +52,104 @@ const dotenv = require('dotenv');
 dotenv.config();
 const BASE_URL = process.env.BASE_URL
 
+function getDashboard (models) {
+  return async (req, res, next) => {
+		let { kelas } = req.query
+    try {
+			let whereUserDetail = {}
+			if(kelas){
+				whereUserDetail.kelas = kelas.split(', ')
+			}
+			const dataUser = await models.User.findAll({
+				where: { statusAktif: true },
+				include: [
+					{ 
+						model: models.UserDetail,
+						where: whereUserDetail,
+					},
+				],
+			});
+			const dataKelas = await models.Kelas.findAll({ where: { status: true } });
+			const dataQuestionExam = await models.QuestionExam.findAll({ where: { statusAktif: true } });
+
+			const resultUser = dataUser.reduce((memo, data) => {
+				const tmp = memo
+				const { mutasiAkun, validasiAkun, consumerType } = data
+				const { jenisKelamin } = data.UserDetail
+				if((consumerType === 1 || consumerType === 2)) tmp.admin += 1
+				if(consumerType === 3) tmp.strukturel += 1
+				if(mutasiAkun && consumerType === 4) tmp.siswa_mutasi_1 += 1
+				if(!mutasiAkun && consumerType === 4) tmp.siswa_mutasi_0 += 1
+				if(validasiAkun && consumerType === 4) tmp.siswa_validasi_1 += 1
+				if(!validasiAkun && consumerType === 4) tmp.siswa_validasi_0 += 1
+				if(jenisKelamin === 'Laki - Laki' && consumerType === 4) tmp.siswa_laki_laki += 1
+				if(jenisKelamin === 'Perempuan' && consumerType === 4) tmp.siswa_perempuan += 1
+				return tmp
+			}, {
+				admin: 0,
+				strukturel: 0,
+				siswa_mutasi_1: 0,
+				siswa_mutasi_0: 0,
+				siswa_validasi_1: 0,
+				siswa_validasi_0: 0,
+				siswa_laki_laki: 0,
+				siswa_perempuan: 0,
+			})
+
+			const resultKelas = dataKelas.reduce((memo, data) => {
+				const tmp = memo
+				const { kelas } = data
+				let split = kelas.split('-')
+				if(split[0] === '7') tmp.kelas_7 += 1
+				if(split[0] === '8') tmp.kelas_8 += 1
+				if(split[0] === '9') tmp.kelas_9 += 1
+				return tmp
+			}, {
+				kelas_7: 0,
+				kelas_8: 0,
+				kelas_9: 0,
+			})
+
+			const resultQuestionExam = dataQuestionExam.reduce((memo, data) => {
+				const tmp = memo
+				const { jenis } = data
+				if(jenis === 'pilihan ganda') tmp.pilihan_ganda += 1
+				if(jenis === 'essay') tmp.essay += 1
+				return tmp
+			}, {
+				pilihan_ganda: 0,
+				essay: 0,
+			})
+
+			const response = {
+				jmlAdmin: resultUser.admin,
+				jmlStruktural: resultUser.strukturel,
+				jmlSiswa: {
+					mutation: resultUser.siswa_mutasi_1,
+					not_mutation: resultUser.siswa_mutasi_0,
+					validation: resultUser.siswa_validasi_1,
+					not_validation: resultUser.siswa_validasi_0,
+					laki_laki: resultUser.siswa_laki_laki,
+					perempuan: resultUser.siswa_perempuan,
+				},
+				jmlKelas: {
+					kelas_7: resultKelas.kelas_7,
+					kelas_8: resultKelas.kelas_8,
+					kelas_9: resultKelas.kelas_9,
+				},
+				jmlQuestionExam: {
+					jenisPg: resultQuestionExam.pilihan_ganda,
+					jenisEssay: resultQuestionExam.essay,
+				},
+			}
+
+			return OK(res, response);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
 function getAdmin (models) {
   return async (req, res, next) => {
 		let { page = 1, limit = 20, keyword } = req.query
@@ -71,7 +169,7 @@ function getAdmin (models) {
 
       const { count, rows: dataAdmin } = await models.User.findAndCountAll({
 				where,
-				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
+				// attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
 				include: [
 					{ 
 						model: models.Role,
@@ -114,6 +212,7 @@ function getAdmin (models) {
 					fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
 					isActive: val.isActive,
 					statusAktif: val.statusAktif,
+					flag: val.deleteBy !== null || val.deletedAt !== null,
 				}
 			}))
 
@@ -216,7 +315,7 @@ function postAdmin (models) {
 					idUser: user.idUser,
 					nomorInduk: '-',
 					tempat: userdetail.tempat,
-					tanggalLahir: userdetail.tanggalLahir,
+					tanggalLahir: convertDate(userdetail.tanggalLahir),
 					jenisKelamin: userdetail.jenisKelamin,
 					agama: userdetail.agama,
 					telp: userdetail.telp,
@@ -235,23 +334,21 @@ function postAdmin (models) {
 			}else if(user.jenis == 'EDIT'){
 				if(await models.User.findOne({where: {email: user.email, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Email sudah di gunakan !')
 				if(await models.User.findOne({where: {username: user.username, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Username sudah di gunakan !')
-				const data = await models.User.findOne({where: {idUser: user.idUser}});
 				salt = await bcrypt.genSalt();
-				let decryptPass = data.kataSandi != user.password ? user.password : decrypt(user.password)
-				hashPassword = await bcrypt.hash(decryptPass, salt);
+				hashPassword = await bcrypt.hash(user.password, salt);
 				kirimdataUser = {
 					consumerType: user.consumerType,
 					nama: user.nama,
 					email: user.email,
 					username: user.username,
 					password: hashPassword,
-					kataSandi: data.kataSandi == user.password ? user.password : encrypt(user.password),
+					kataSandi: encrypt(user.password),
 					statusAktif: 1,
 					updateBy: userID,
 				}
 				kirimdataUserDetail = {
 					tempat: userdetail.tempat,
-					tanggalLahir: userdetail.tanggalLahir,
+					tanggalLahir: convertDate(userdetail.tanggalLahir),
 					jenisKelamin: userdetail.jenisKelamin,
 					agama: userdetail.agama,
 					telp: userdetail.telp,
@@ -310,7 +407,7 @@ function getStruktural (models) {
 
       const { count, rows: dataStruktural } = await models.User.findAndCountAll({
 				where,
-				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
+				// attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
 				include: [
 					{ 
 						model: models.Role,
@@ -359,6 +456,7 @@ function getStruktural (models) {
 					fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
 					isActive: val.isActive,
 					statusAktif: val.statusAktif,
+					flag: val.deleteBy !== null || val.deletedAt !== null,
 				}
 			}))
 
@@ -544,17 +642,15 @@ function postStruktural (models) {
 				if(userdetail.nomorInduk !== '-'){
 					if(await models.UserDetail.findOne({where: {nomorInduk: userdetail.nomorInduk, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Nomor Induk sudah di gunakan !')
 				}
-				const data = await models.User.findOne({where: {idUser: user.idUser}});
 				salt = await bcrypt.genSalt();
-				let decryptPass = data.kataSandi != user.password ? user.password : decrypt(user.password)
-				hashPassword = await bcrypt.hash(decryptPass, salt);
+				hashPassword = await bcrypt.hash(user.password, salt);
 				kirimdataUser = {
 					consumerType: user.consumerType,
 					nama: user.nama,
 					email: user.email,
 					username: user.username,
 					password: hashPassword,
-					kataSandi: data.kataSandi == user.password ? user.password : encrypt(user.password),
+					kataSandi: encrypt(user.password),
 					statusAktif: 1,
 					updateBy: userID,
 				}
@@ -681,7 +777,7 @@ function getSiswaSiswi (models) {
 
       const { count, rows: dataSiswaSiswi } = await models.User.findAndCountAll({
 				where,
-				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'updatedAt', 'deletedAt'] },
+				// attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'updatedAt', 'deletedAt'] },
 				include: [
 					{ 
 						model: models.Role,
@@ -701,8 +797,43 @@ function getSiswaSiswi (models) {
 			});
 
 			// return OK(res, dataSiswaSiswi)
+			const dataCMS = await models.CMSSetting.findAll({ where: { kode: ['semester', 'kkm'] } });
+			const cms_setting = {}
+			dataCMS.forEach(str => {
+				let eva = JSON.parse(str.setting)
+				if(eva.label){
+					cms_setting[str.kode] = eva
+				}else{
+					cms_setting[str.kode] = eva.value
+				}
+			})
 			const getResult = await Promise.all(dataSiswaSiswi.map(async val => {
+				const getNilai = await models.Nilai.findAll({ where: { idUser: val.idUser } })
+				const dataPenilaian = await Promise.all(getNilai.map(async k => {
+					const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: val.UserDetail.kelas, mapel: k.dataValues.mapel, status: true } });
+					let nilai = JSON.parse(k.dataValues.dataNilai)
+					let kehadiran = JSON.parse(k.dataValues.dataKehadiran)
+					let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+
+					return {
+						mapel: k.dataValues.mapel,
+						semester,
+						dataNK: {
+							// dataNilai: nilai,
+							// dataKehadiran: kehadiran,
+							nilai: nilai.filter(str => str.semester === semester)[0].nilai,
+							kehadiran: kehadiran.filter(str => str.semester === semester)[0].kehadiran,
+						},
+						dataJadwal: {
+							jumlahTugas: dataJadwal ? dataJadwal.jumlahTugas : '0',
+							kkm: dataJadwal ? dataJadwal.kkm : cms_setting.kkm,
+						},
+					}
+				}))
+
 				return {
+					cms_setting,
+					dataPenilaian,
 					idUser: val.idUser,
 					consumerType: val.consumerType,
 					nikSiswa: val.UserDetail.nikSiswa,
@@ -793,6 +924,7 @@ function getSiswaSiswi (models) {
 					condition: new Date().getDate() === new Date(val.createdAt).getDate() ? true : false,
 					isActive: val.isActive,
 					statusAktif: val.statusAktif,
+					flag: val.deleteBy !== null || val.deletedAt !== null,
 				}
 			}))
 
@@ -961,7 +1093,7 @@ function postSiswaSiswi (models) {
 					[Op.or]: [
 						{ email: user.email },
 						{ username: user.username },
-						{ '$UserDetail.nomor_induk$': str.nomorInduk },
+						{ '$UserDetail.nomor_induk$': userdetail.nomorInduk },
 					] 
 				}
 				const count = await models.User.count({
@@ -1052,52 +1184,44 @@ function postSiswaSiswi (models) {
 					transportasi: userdetail.dataLainnya.transportasi,
 				}
 
-				const dataCMS = await models.CMSSetting.findAll();
+				// const dataCMS = await models.CMSSetting.findAll();
 
-				const cms_setting = {}
-				dataCMS.forEach(str => {
-					let eva = JSON.parse(str.setting)
-					if(eva.label){
-						cms_setting[str.kode] = eva
-					}else{
-						cms_setting[str.kode] = eva.value
-					}
-				})
-				let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+				// const cms_setting = {}
+				// dataCMS.forEach(str => {
+				// 	let eva = JSON.parse(str.setting)
+				// 	if(eva.label){
+				// 		cms_setting[str.kode] = eva
+				// 	}else{
+				// 		cms_setting[str.kode] = eva.value
+				// 	}
+				// })
+				// let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
 
 				let dataMengajar = await _allOption({ table: models.Mengajar })
 				let kirimdataNilai = []
 				await dataMengajar.map(str => {
 					kirimdataNilai.push({
-						idUser: ksuid,
+						idUser: user.idUser,
 						mapel: str.label,
 						dataNilai: JSON.stringify([
 							{
-								semester,
-								nilai: {
-									tugas1: 0,
-									tugas2: 0,
-									tugas3: 0,
-									tugas4: 0,
-									tugas5: 0,
-									tugas6: 0,
-									tugas7: 0,
-									tugas8: 0,
-									tugas9: 0,
-									tugas10: 0,
-									uts: 0,
-									uas: 0
-								}
-							}
+								semester: 'ganjil',
+								nilai: { tugas1: 0, tugas2: 0, tugas3: 0, tugas4: 0, tugas5: 0, tugas6: 0, tugas7: 0, tugas8: 0, tugas9: 0, tugas10: 0, uts: 0, uas: 0 }
+							},
+							{
+								semester: 'genap',
+								nilai: { tugas1: 0, tugas2: 0, tugas3: 0, tugas4: 0, tugas5: 0, tugas6: 0, tugas7: 0, tugas8: 0, tugas9: 0, tugas10: 0, uts: 0, uas: 0 }
+							},
 						]),
 						dataKehadiran: JSON.stringify([
 							{
-								kehadiran: {
-									sakit: 0,
-									alfa: 0,
-									ijin: 0,
-								}
-							}
+								semester: 'ganjil',
+								kehadiran: { sakit: 0, alfa: 0, ijin: 0 }
+							},
+							{
+								semester: 'genap',
+								kehadiran: { sakit: 0, alfa: 0, ijin: 0 }
+							},
 						])
 					})
 				})
@@ -1113,17 +1237,15 @@ function postSiswaSiswi (models) {
 				if(userdetail.nomorInduk !== '-'){
 					if(await models.UserDetail.findOne({where: {nomorInduk: userdetail.nomorInduk, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Nomor Induk sudah di gunakan !')
 				}
-				const data = await models.User.findOne({where: {idUser: user.idUser}});
 				salt = await bcrypt.genSalt();
-				let decryptPass = data.kataSandi != user.password ? user.password : decrypt(user.password)
-				hashPassword = await bcrypt.hash(decryptPass, salt);
+				hashPassword = await bcrypt.hash(user.password, salt);
 				kirimdataUser = {
 					consumerType: user.consumerType,
 					nama: user.nama,
 					email: user.email,
 					username: user.username,
 					password: hashPassword,
-					kataSandi: data.kataSandi == user.password ? user.password : encrypt(user.password),
+					kataSandi: encrypt(user.password),
 					statusAktif: 1,
 					updateBy: userID,
 				}
@@ -1673,11 +1795,25 @@ function postPenilaian (models) {
 				const dataNilai = await models.Nilai.findOne({ where: { idUser: body.idUser, mapel: body.mapel } });
 				let hasil = JSON.parse(dataNilai.dataNilai)
 				let nilai = hasil.filter(str => str.semester !== body.semester)[0]
-				let obj = [ nilai, body.dataNilai[0] ]
+				let obj = [ nilai, body.dataNilai ]
 				kirimdata = {
 					dataNilai: JSON.stringify(obj),
 				}
+				// console.log(kirimdata, body.mapel);
 				await models.Nilai.update(kirimdata, { where: { idUser: body.idUser, mapel: body.mapel } })
+			}
+			if(body.jenis === 'nilaiAll'){
+				await Promise.all(body.dataNilai.map(async val => {
+					const nilaiALL = await models.Nilai.findOne({ where: { idUser: val.idUser, mapel: body.mapel } });
+					let hasil = JSON.parse(nilaiALL.dataNilai)
+					let nilai = hasil.filter(str => str.semester !== val.semester)[0]
+					let obj = [ nilai, val.dataNilai ]
+					kirimdata = {
+						dataNilai: JSON.stringify(obj),
+					}
+					// console.log(kirimdata, body.mapel);
+					await models.Nilai.update(kirimdata, { where: { idUser: val.idUser, mapel: body.mapel } })
+				}))
 			}
 			if(body.jenis === 'jumlah_tugas'){
 				kirimdata = {
@@ -1690,7 +1826,7 @@ function postPenilaian (models) {
 				const dataKehadiran = await models.Nilai.findOne({ where: { idUser: body.idUser, mapel: body.mapel } });
 				let hasil = JSON.parse(dataKehadiran.dataKehadiran)
 				let nilai = hasil.filter(str => str.semester !== body.semester)[0]
-				let obj = [ nilai, body.dataKehadiran[0] ]
+				let obj = [ nilai, body.dataKehadiran ]
 				kirimdata = {
 					dataKehadiran: JSON.stringify(obj),
 				}
@@ -2308,18 +2444,18 @@ function importExcel (models) {
 							transportasi: str.transportasi,
 						}
 
-						const dataCMS = await models.CMSSetting.findAll();
+						// const dataCMS = await models.CMSSetting.findAll();
 
-						const cms_setting = {}
-						dataCMS.forEach(str => {
-							let eva = JSON.parse(str.setting)
-							if(eva.label){
-								cms_setting[str.kode] = eva
-							}else{
-								cms_setting[str.kode] = eva.value
-							}
-						})
-						let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+						// const cms_setting = {}
+						// dataCMS.forEach(str => {
+						// 	let eva = JSON.parse(str.setting)
+						// 	if(eva.label){
+						// 		cms_setting[str.kode] = eva
+						// 	}else{
+						// 		cms_setting[str.kode] = eva.value
+						// 	}
+						// })
+						// let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
 
 						let dataMengajar = await _allOption({ table: models.Mengajar })
 						let kirimdataNilai = []
@@ -2329,31 +2465,23 @@ function importExcel (models) {
 								mapel: str.label,
 								dataNilai: JSON.stringify([
 									{
-										semester,
-										nilai: {
-											tugas1: 0,
-											tugas2: 0,
-											tugas3: 0,
-											tugas4: 0,
-											tugas5: 0,
-											tugas6: 0,
-											tugas7: 0,
-											tugas8: 0,
-											tugas9: 0,
-											tugas10: 0,
-											uts: 0,
-											uas: 0
-										}
-									}
+										semester: 'ganjil',
+										nilai: { tugas1: 0, tugas2: 0, tugas3: 0, tugas4: 0, tugas5: 0, tugas6: 0, tugas7: 0, tugas8: 0, tugas9: 0, tugas10: 0, uts: 0, uas: 0 }
+									},
+									{
+										semester: 'genap',
+										nilai: { tugas1: 0, tugas2: 0, tugas3: 0, tugas4: 0, tugas5: 0, tugas6: 0, tugas7: 0, tugas8: 0, tugas9: 0, tugas10: 0, uts: 0, uas: 0 }
+									},
 								]),
 								dataKehadiran: JSON.stringify([
 									{
-										kehadiran: {
-											sakit: 0,
-											alfa: 0,
-											ijin: 0,
-										}
-									}
+										semester: 'ganjil',
+										kehadiran: { sakit: 0, alfa: 0, ijin: 0 }
+									},
+									{
+										semester: 'genap',
+										kehadiran: { sakit: 0, alfa: 0, ijin: 0 }
+									},
 								])
 							})
 						})
@@ -2894,7 +3022,7 @@ function pdfCreate (models) {
 						type: "pdf",
 					};
 					pdf.create(data, options).toStream(function(err, stream){
-						stream.pipe(res);
+						return stream.pipe(res);
 					});
 				}
 			});
@@ -3035,7 +3163,7 @@ function pdfCreateRaport (models) {
 						type: "pdf",
 					};
 					pdf.create(data, options).toStream(function(err, stream){
-						stream.pipe(res);
+						return stream.pipe(res);
 					});
 				}
 			});
@@ -3094,6 +3222,245 @@ function listSiswaSiswi (models) {
 	}  
 }
 
+function getQuestionExam (models) {
+  return async (req, res, next) => {
+		let { page = 1, limit = 20, keyword } = req.query
+    let where = {}
+    try {
+			const { userID, consumerType } = req.JWTDecoded
+			const dataUser = await models.UserDetail.findOne({
+				where: { idUser: userID },
+				attributes: ["mengajarBidang", "mengajarKelas"]
+			})
+			let kelas = []
+			if(consumerType === 3){
+				let data = dataUser.mengajarKelas.split(', ')
+				data.map(val => {
+					let key = val.split('-')[0]
+					if(!_.includes(kelas, key)){
+						kelas.push(key)
+					}
+				})
+			}
+
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ mapel : { [Op.like]: `%${keyword}` }},
+					{ kelas : { [Op.like]: `%${keyword}` }},
+					{ jenis : { [Op.like]: `%${keyword}` }},
+				]
+			} : {}
+
+			where = consumerType === 1 || consumerType === 1 ? whereKey : { ...whereKey, mapel: dataUser.mengajarBidang.split(', '), kelas: kelas }
+
+			const { count, rows: dataQuestionExam } = await models.QuestionExam.findAndCountAll({
+				where,
+				order: [
+					['createdAt', 'DESC'],
+				],
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+
+			const getResult = await Promise.all(dataQuestionExam.map(async val => {
+				const dataUser = await models.User.findOne({where: { idUser: val.createBy },attributes: ["idUser", "nama"]})
+				const dataUserUpdate = await models.User.findOne({where: { idUser: val.updateBy },attributes: ["idUser", "nama"]})
+				const dataMapel = await _mengajarOption({ models, kode: val.mapel })
+				const pertanyaan = JSON.parse(val.pertanyaan)
+				const pilihan = val.pilihan ? JSON.parse(val.pilihan) : []
+				return {
+					idExam: val.idExam,
+					idUser: dataUser.idUser,
+					kode: val.kode,
+					kodemapel: dataMapel ? dataMapel[0].kode : '',
+					namamapel: dataMapel ? dataMapel[0].label : '',
+					kelas: val.kelas,
+					jenis: val.jenis,
+					pertanyaan: {
+						text: pertanyaan.text,
+						file: pertanyaan.file ? `${BASE_URL}berkas/${pertanyaan.file}` : null,
+					},
+					pilihan: !pilihan ? [] : pilihan.map(v => {
+						return {
+							jenis: v.jenis,
+							value: v.value,
+							text: v.text,
+							file: v.file ? `${BASE_URL}berkas/${v.file}` : null,
+						}
+					}),
+					kunci: val.kunci,
+					statusAktif: val.statusAktif,
+					flag: val.deleteBy !== null || val.deletedAt !== null,
+					createBy: dataUser.nama,
+					updateBy: dataUserUpdate ? dataUserUpdate.nama : '-',
+					createdAt: val.createdAt,
+				}
+			}))
+
+			const responseData = buildMysqlResponseWithPagination(
+				getResult,
+				{ limit, page, total: count }
+			)
+
+			return OK(res, responseData);
+    } catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function postQuestionExam (models) {
+  return async (req, res, next) => {
+		let body = req.body
+    try {
+			const { userID } = req.JWTDecoded
+			let kirimdata;
+			if(body.proses == 'ADD'){
+				kirimdata = {
+					mapel: body.mapel,
+					kelas: body.kelas,
+					kode: makeRandom(10),
+					jenis: body.jenis,
+					pertanyaan: JSON.stringify(body.pertanyaan),
+					pilihan: body.pilihan ? JSON.stringify(body.pilihan) : null,
+					kunci: body.kunci ? body.kunci : null,
+					statusAktif: 1,
+					createBy: userID,
+				}
+				await models.QuestionExam.create(kirimdata)
+			}else if(body.proses == 'EDIT'){
+				kirimdata = {
+					mapel: body.mapel,
+					kelas: body.kelas,
+					jenis: body.jenis,
+					pertanyaan: JSON.stringify(body.pertanyaan),
+					pilihan: body.pilihan ? JSON.stringify(body.pilihan) : null,
+					kunci: body.kunci ? body.kunci : null,
+					updateBy: userID,
+				}
+				await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } })
+			}else if(body.proses == 'DELETE'){
+				kirimdata = {
+					statusAktif: 0,
+					deleteBy: userID,
+					deletedAt: new Date(),
+				}
+				await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } })	
+				// await models.QuestionExam.destroy({ where: { kode: body.kode } })	
+			}else if(body.proses == 'STATUSRECORD'){
+				kirimdata = { 
+					statusAktif: body.kondisi, 
+					updateBy: userID
+				}
+				await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } })
+			}else{
+				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			}
+
+			return OK(res);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getJadwalExam (models) {
+  return async (req, res, next) => {
+		let { page = 1, limit = 20, mapel, kelas } = req.query
+    let where = {}
+    try {
+			// const { userID, consumerType } = req.JWTDecoded
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			if(mapel) {
+				where.mapel = mapel
+			}
+			if(kelas) {
+				where.kelas = kelas
+			}
+
+			const { count, rows: dataJadwalExam } = await models.JadwalExam.findAndCountAll({
+				where,
+				order: [
+					['createdAt', 'DESC'],
+				],
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+
+			const getResult = await Promise.all(dataJadwalExam.map(async val => {
+				const dataMapel = await _mengajarOption({ models, kode: val.mapel })
+				return {
+					idJadwalExam: val.idJadwalExam,
+					kodemapel: dataMapel ? dataMapel[0].kode : '',
+					namamapel: dataMapel ? dataMapel[0].label : '',
+					kelas: val.kelas,
+					waktu: val.waktu,
+					startDate: val.startDate,
+					endDate: val.endDate,
+					status: val.status,
+					createdAt: val.createdAt,
+				}
+			}))
+
+			const responseData = buildMysqlResponseWithPagination(
+				getResult,
+				{ limit, page, total: count }
+			)
+
+			return OK(res, responseData);
+    } catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function postJadwalExam (models) {
+	return async (req, res, next) => {
+		  let body = req.body
+	  try {
+			  const { userID } = req.JWTDecoded
+			  let kirimdata;
+			  if(body.jenis == 'ADD'){
+				  kirimdata = {
+					  idJadwalExam: makeRandom(10),
+					  mapel: body.mapel,
+					  kelas: body.kelas,
+					  waktu: body.waktu,
+					  startDate: body.dateRange[0],
+					  endDate: body.dateRange[1],
+					  status: 1,
+				  }
+				  await models.JadwalExam.create(kirimdata)
+			  }else if(body.jenis == 'EDIT'){
+				  kirimdata = {
+					  mapel: body.mapel,
+					  kelas: body.kelas,
+					  waktu: body.waktu,
+					  startDate: body.dateRange[0],
+					  endDate: body.dateRange[1],
+				  }
+				  await models.JadwalExam.update(kirimdata, { where: { idJadwalExam: body.idJadwalExam } })
+			  }else if(body.jenis == 'DELETE'){
+				  await models.JadwalExam.destroy({ where: { idJadwalExam: body.idJadwalExam } })	
+			  }else if(body.jenis == 'STATUSRECORD'){
+				  kirimdata = { 
+					  status: body.status, 
+					}
+				  await models.JadwalExam.update(kirimdata, { where: { idJadwalExam: body.idJadwalExam } })
+			  }else{
+				  return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			  }
+  
+			  return OK(res);
+	  } catch (err) {
+			  return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
 function testing (models) {
 	return async (req, res, next) => {
 		try {
@@ -3116,6 +3483,7 @@ function testing (models) {
 }
 
 module.exports = {
+  getDashboard,
   getAdmin,
   getAdminbyUid,
   postAdmin,
@@ -3137,5 +3505,9 @@ module.exports = {
   pdfCreate,
   pdfCreateRaport,
   listSiswaSiswi,
+  getQuestionExam,
+  postQuestionExam,
+  getJadwalExam,
+	postJadwalExam,
   testing,
 }

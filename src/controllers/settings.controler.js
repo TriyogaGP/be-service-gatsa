@@ -3,14 +3,14 @@ const {
 	OK,
 	NOT_FOUND,
 	NO_CONTENT
-} = require('../utils/response.utils');
+} = require('@triyogagp/backend-common/utils/response.utils');
 const {
 	encrypt,
 	decrypt,
 	convertDateTime,
 	createKSUID,
 	buildMysqlResponseWithPagination
-} = require('../utils/helper.utils')
+} = require('@triyogagp/backend-common/utils/helper.utils')
 const { Op } = require('sequelize')
 const sequelize = require('sequelize')
 const { logger } = require('../configs/db.winston')
@@ -35,6 +35,13 @@ function updateFile (models) {
 				body.field == 'skl' ? { fcSKL: body.nama_folder+'/'+body.namaFile } : 
 				{ fotoProfil: body.nama_folder+'/'+body.namaFile }
 				await models.UserDetail.update(kirimdata, { where: { idUser: body.idUser } })
+			}else if(body.table == 'CMSSetting'){
+				kirimdata = { 
+					setting: JSON.stringify({
+						value: body.namaFile,
+					}),
+				}
+				await models.CMSSetting.update(kirimdata, { where: { kode: body.kode } })
 			}
 			return OK(res, body);
     } catch (err) {
@@ -204,19 +211,9 @@ function crudMenu (models) {
 			}else if(body.jenis == 'EDIT'){
 				if(await models.Menu.findOne({
 					where: {
-						[Op.or]: [
-							{ 
-								[Op.and]: [
-									{ kategori: body.kategori },
-									{ menuRoute: body.menu_route },
-								]
-							},
-							{ 
-								[Op.and]: [
-									{ menuRoute: body.menu_route },
-									{ menuText: body.menu_text }
-								]
-							},
+						[Op.and]: [
+							{ menuRoute: body.menu_route },
+							{ menuText: body.menu_text }
 						],
 						[Op.not]: [
 							{idMenu: body.id_menu}
@@ -557,9 +554,13 @@ function getNotifikasi (models) {
 			const records = await Promise.all(datanotifikasi.map(async val => {
 				const dataBerkas = await models.Berkas.findAll({ where: { idBerkas: JSON.parse(val.dataValues.tautan), statusAktif: true } })
 				const dataUser = await models.User.findOne({ where: { idUser: val.dataValues.idUser } })
+				let pesan = JSON.parse(val.dataValues.pesan)
 				return {
 					...val.dataValues,
-					pesan: JSON.parse(val.dataValues.pesan),
+					pesan: {
+						message: pesan.message,
+						payload: JSON.stringify(pesan.payload),
+					},
 					params: JSON.parse(val.dataValues.params),
 					tautan: await dataBerkas.map(k => {
 						return {
@@ -655,13 +656,22 @@ function crudNotifikasi (models) {
 					isRead: 1,
 				}
 				await models.Notifikasi.update(payload, { where: { idNotifikasi: body.idNotifikasi } })
+			}else if(body.jenis === 'ISREADALL'){
+				const type = body.kategori === '1' ? ['Record', 'Report'] : body.kategori === '2' ? ['Record'] : body.kategori === '4' ? ['Broadcast'] : ['Report']
+				const datanotifikasi = await models.Notifikasi.findAll({
+					where: { idUser: userID, type: type, isRead: 0 },
+					attributes: ["idNotifikasi", "type"],
+				});
+				await Promise.all(datanotifikasi.map(async val => {
+					await models.Notifikasi.update({ isRead: 1 }, { where: { idNotifikasi: val.dataValues.idNotifikasi } })
+				}))
 			}else if(body.jenis === 'CREATE'){
 				let payload = {
 					idNotifikasi: await createKSUID(),
 					idUser: body.idUser,
 					type: body.type,
 					judul: body.judul,
-					pesan: body.pesan,
+					pesan: JSON.stringify(body.pesan),
 					params: body.params !== null ? JSON.stringify(body.params) : null,
 					dikirim: body.dikirim,
 					createBy: body.createBy,
@@ -675,10 +685,10 @@ function crudNotifikasi (models) {
 						idUser: idUser,
 						type: body.type,
 						judul: body.judul,
-						pesan: body.pesan,
+						pesan: JSON.stringify(body.pesan),
 						params: body.params !== null ? JSON.stringify(body.params) : null,
 						dikirim: body.dikirim,
-						tautan: body.tautan,
+						tautan: JSON.stringify(body.tautan),
 						createBy: body.createBy,
 				})
 				}))
@@ -705,6 +715,7 @@ function getCMSSetting (models) {
 				if(eva.label){
 					data[str.kode] = eva
 				}else{
+					// if(str.kode === 'logo') return data[str.kode] = `${BASE_URL}bahan/${eva.value}`
 					data[str.kode] = eva.value
 				}
 			})
@@ -1056,7 +1067,8 @@ function optionsWilayah (models) {
 			}
 			const dataWilayah = await models.Wilayah.findAll({
 				where,
-				attributes: [['kode', 'value'], ['nama', 'text'], 'kodePos']
+				// attributes: [['kode', 'value'], ['nama', 'text'], 'kodePos']
+				attributes: ['kode', 'nama', 'kodePos']
 			});
 
 			return OK(res, dataWilayah);
@@ -1089,11 +1101,14 @@ function optionsBerkas (models) {
 			}))
 
 			if(extGBR.length && extFile.length){
-				return OK(res, [{header: 'Files'}, ...extFile, {divider: true}, {header: 'Images'}, ...extGBR]);
+				// return OK(res, [{header: 'Files'}, ...extFile, {divider: true}, {header: 'Images'}, ...extGBR]);
+				return OK(res, [...extFile, ...extGBR]);
 			}else if(extGBR.length && !extFile.length){
-				return OK(res, [{header: 'Images'}, ...extGBR]);
+				// return OK(res, [{header: 'Images'}, ...extGBR]);
+				return OK(res, [...extGBR]);
 			}else if(!extGBR.length && extFile.length){
-				return OK(res, [{header: 'Files'}, ...extFile]);
+				// return OK(res, [{header: 'Files'}, ...extFile]);
+				return OK(res, [...extFile]);
 			}
     } catch (err) {
 			return NOT_FOUND(res, err.message)
@@ -1152,11 +1167,14 @@ function getUserBroadcast (models) {
 					}
 				}))
 				if(pushSiswa.length && pushGuru.length){
-					return OK(res, [{header: 'Guru'}, ...pushGuru, {divider: true}, {header: 'Siswa-Siswi'}, ...pushSiswa]);
+					// return OK(res, [{header: 'Guru'}, ...pushGuru, {divider: true}, {header: 'Siswa-Siswi'}, ...pushSiswa]);
+					return OK(res, [...pushGuru, ...pushSiswa]);
 				}else if(pushSiswa.length && !pushGuru.length){
-					return OK(res, [{header: 'Siswa-Siswi'}, ...pushSiswa]);
+					// return OK(res, [{header: 'Siswa-Siswi'}, ...pushSiswa]);
+					return OK(res, [...pushSiswa]);
 				}else if(!pushSiswa.length && pushGuru.length){
-					return OK(res, [{header: 'Guru'}, ...pushGuru]);
+					// return OK(res, [{header: 'Guru'}, ...pushGuru]);
+					return OK(res, [...pushGuru]);
 				}
 			}else if(kategori === 'KELAS'){
 				const dataKelas = await models.Kelas.findAll({

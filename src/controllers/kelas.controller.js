@@ -3,12 +3,12 @@ const {
 	OK,
 	NOT_FOUND,
 	NO_CONTENT
-} = require('../utils/response.utils');
+} = require('@triyogagp/backend-common/utils/response.utils');
 const {
 	encrypt,
 	decrypt,
 	buildMysqlResponseWithPagination
-} = require('../utils/helper.utils');
+} = require('@triyogagp/backend-common/utils/helper.utils');
 const { Op } = require('sequelize')
 const sequelize = require('sequelize')
 const bcrypt = require('bcrypt');
@@ -138,7 +138,7 @@ function getKelasSiswa (models) {
 	
 				let result = await Promise.all(dataKelas.map(async val => {
 					let jumlah = await models.User.count({
-						where: { mutasiAkun: false },
+						where: { mutasiAkun: false, statusAktif: true },
 						include: [
 							{ 
 								model: models.UserDetail,

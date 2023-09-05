@@ -3,13 +3,13 @@ const {
 	OK,
 	NOT_FOUND,
 	NO_CONTENT
-} = require('../utils/response.utils');
+} = require('@triyogagp/backend-common/utils/response.utils');
 const {
 	encrypt,
 	decrypt,
 	createKSUID,
 	buildMysqlResponseWithPagination
-} = require('../utils/helper.utils');
+} = require('@triyogagp/backend-common/utils/helper.utils');
 const { Op } = require('sequelize')
 const sequelize = require('sequelize')
 const bcrypt = require('bcrypt');

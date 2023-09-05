@@ -25,21 +25,27 @@
 			width: 100%;
 			height: 100%;
 		}
-		.validate {
-			background-image: url('<%= dataSiswa.url %>bahan/validate.png');
+		/* .validate {
+			background-image: url('<%= dataSiswa.url %>bahan/validate_1.png');
 			background-repeat: repeat;
 			background-attachment: fixed;
-			/* opacity: 0.4; */
-			/* z-index: 100; */
+			opacity: 0.4;
+			z-index: 100;
 			background-size: 100%;
+		} */
+		/* .notvalidate {
+			background-image: url('<%= dataSiswa.url %>bahan/notvalidate_1.png');
+			background-repeat: repeat;
+			background-attachment: fixed;
+			opacity: 0.9;
+			z-index: 100;
+			background-size: 100%;
+		} */
+		.validate {
+			background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' version='1.1' height='150px' width='150px'><text transform='translate(20, 100) rotate(-45)' fill='rgb(0,255,0)' font-size='18'>VALIDATED</text></svg>");
 		}
 		.notvalidate {
-			background-image: url('<%= dataSiswa.url %>bahan/notvalidate.png');
-			background-repeat: repeat;
-			background-attachment: fixed;
-			/* opacity: 0.4;
-			z-index: 100; */
-			background-size: 100%;
+			background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' version='1.1' height='150px' width='150px'><text transform='translate(20, 110) rotate(-45)' fill='rgb(255,0,0)' font-size='18'>NOT VALIDATED</text></svg>");
 		}
 		hr{
 			border: 2px double #000;
@@ -59,31 +65,31 @@
 		}
 	</style>
 	<div class="container">
+		<table border="0" width="100%" cellspacing="0" cellpadding="0">
+			<tr>
+				<td width="20%" style="text-align: center; vertical-align: middle;">
+					<img
+						src="<%= dataSiswa.url %>bahan/<%= cmsSetup.logo %>"
+						alt="Gatsa logo"
+						width="80px"
+						height="80px"
+						style="display: inline-block;"
+					/>
+				</td>
+				<td height="110px">
+					<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
+					<p class="alamat">Alamat: <%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2"><hr></td>
+			</tr>
+		</table>
 		<% if(dataSiswa.validasiAkun === false) { %> 
 		<div class="notvalidate">
 		<% }else{ %>
 		<div class="validate">
 		<% } %>
-			<table border="0" width="100%" cellspacing="0" cellpadding="0">
-				<tr>
-					<td width="20%" style="text-align: center; vertical-align: middle;">
-						<img
-							src="<%= dataSiswa.url %>bahan/gatsa.png"
-							alt="Gatsa logo"
-							width="80px"
-							height="80px"
-							style="display: inline-block;"
-						/>
-					</td>
-					<td height="110px">
-						<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
-						<p class="alamat">Alamat: <%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
-					</td>
-				</tr>
-				<tr>
-					<td colspan="2"><hr></td>
-				</tr>
-			</table>
 			<table width="100%" border="0" cellspacing="1" cellpadding="1"> 
 				<tr>
 					<td colspan="3" class="judul">DATA PRIBADI</td>
@@ -383,10 +389,6 @@
 					<td class="isi" width="63%"><% if(dataSiswa.fcSKL) { %> <i class="fa fa-check"></i> (Done) <% }else{ %> - <% } %> </td>
 				</tr>
 			</table>
-			<br/><br/><br/><br/><br/>
-			<br/><br/><br/><br/><br/>
-			<!-- <br/><br/><br/><br/><br/>
-			<br/><br/><br/><br/><br/> -->
 		</div>
 	</div>
 </body>

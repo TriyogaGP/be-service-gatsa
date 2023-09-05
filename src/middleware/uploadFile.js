@@ -18,6 +18,9 @@ const storage = multer.diskStorage({
 				fs.readdirSync(path_dir, { withFileTypes: true });
 			};
 			callBack(null, path_dir)
+		}else if(jenis == 'logo'){
+			const path_dir = path.join(__dirname, '../public/bahan/')
+			callBack(null, path_dir)
 		}else{
 			const location = './src/public/excel/'
 			callBack(null, location)
@@ -26,7 +29,7 @@ const storage = multer.diskStorage({
 	filename: (req, file, callBack) => {
 			const { body } = req;
 			const { jenis, bagian, nama, nama_file, nama_folder } = body
-			if(jenis == 'image'){
+			if(jenis == 'image' || jenis == 'logo'){
 				let extension = file.mimetype.split('/')
 				callBack(null, nama_file + '.' + extension[1])
 			}else if(jenis == 'pdf'){

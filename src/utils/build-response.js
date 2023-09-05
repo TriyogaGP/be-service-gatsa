@@ -1,4 +1,4 @@
-const { decrypt, convertDateTime, dateconvert, convertDate } = require('./helper.utils');
+const { decrypt, convertDateTime, dateconvert, convertDate } = require('@triyogagp/backend-common/utils/helper.utils');
 const {
 	_agamaOption,
   _citacitaOption,

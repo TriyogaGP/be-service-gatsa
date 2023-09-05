@@ -3,14 +3,14 @@ const {
 	OK,
 	NOT_FOUND,
 	NO_CONTENT
-} = require('../utils/response.utils');
+} = require('@triyogagp/backend-common/utils/response.utils');
 const { 
 	_buildResponseUser,
 	_buildResponseAdmin,
 	_buildResponseStruktural,
 	_buildResponseSiswaSiswi
 } = require('../utils/build-response');
-const { encrypt, decrypt } = require('../utils/helper.utils');
+const { encrypt, decrypt } = require('@triyogagp/backend-common/utils/helper.utils');
 const { Op } = require('sequelize')
 const sequelize = require('sequelize')
 const bcrypt = require('bcrypt');

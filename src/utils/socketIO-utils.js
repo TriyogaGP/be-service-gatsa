@@ -1,7 +1,8 @@
-const { encrypt, decrypt, makeRandom, createKSUID, convertDateTime } = require('./helper.utils');
+const { encrypt, decrypt, makeRandom, createKSUID, convertDateTime } = require('@triyogagp/backend-common/utils/helper.utils');
 const { Op } = require('sequelize')
 const { sequelizeInstance, Sequelize } = require('../configs/db.config');
-const { importModels } = require('../models/index')
+// const { importModels } = require('../models/index')
+const { importModels } = require('@triyogagp/backend-common/models/gatsa')
 const models = importModels(sequelizeInstance, Sequelize);
 
 const dayjs = require('dayjs');
@@ -143,6 +144,7 @@ const insertPesan = async (data) => {
     idPercakapan: await createKSUID(),
     room: data.room,
     pengirim: data.pengirim,
+    penerima: data.penerima,
     pesan: data.pesan,
     isRead: 0,
   }

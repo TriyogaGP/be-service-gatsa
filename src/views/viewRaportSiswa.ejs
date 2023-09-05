@@ -28,13 +28,16 @@
 		hr{
 			border: 2px double #000;
 		}
-		.draft {
+		/* .draft {
 			background-image: url('<%= dataSiswa.url %>bahan/draft.png');
 			background-repeat: repeat;
 			background-attachment: fixed;
-			/* opacity: 0.4;
-			z-index: 100; */
+			opacity: 0.4;
+			z-index: 100;
 			background-size: 100%;
+		} */
+		.draft {
+			background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' version='1.1' height='80px' width='80px'><text transform='translate(20, 80) rotate(-45)' fill='grey' font-size='18'>Draft</text></svg>");
 		}
 		.namasekolah{
 			text-align: center; 
@@ -80,34 +83,34 @@
 		}
 	</style>
 	<div class="container">
+		<table border="0" width="100%" cellspacing="0" cellpadding="0">
+			<tr>
+				<td width="20%" style="text-align: center; vertical-align: middle;">
+					<img
+						src="<%= dataSiswa.url %>bahan/<%= cmsSetup.logo %>"
+						alt="Gatsa logo"
+						width="80px"
+						height="80px"
+						style="display: inline-block;"
+					/>
+				</td>
+				<td height="110px">
+					<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
+					<p class="alamat">Alamat: <%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2"><hr></td>
+			</tr>
+		</table>
 		<% if(cmsSetup.pdfraport.value === 1) { %> 
 		<div class="draft">
 		<% }else{ %>
 		<div>
 		<% } %>
-			<table border="0" width="100%" cellspacing="0" cellpadding="0">
-				<tr>
-					<td width="20%" style="text-align: center; vertical-align: middle;">
-						<img
-							src="<%= dataSiswa.url %>bahan/gatsa.png"
-							alt="Gatsa logo"
-							width="80px"
-							height="80px"
-							style="display: inline-block;"
-						/>
-					</td>
-					<td height="110px">
-						<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
-						<p class="alamat">Alamat: <%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
-					</td>
-				</tr>
-				<tr>
-					<td colspan="2"><hr></td>
-				</tr>
-			</table>
 			<p class="kepala">
 				<%= cmsSetup.jenisraport.label %><br>
-				TAHUN PELAJARAN <%= cmsSetup.tahunpelajaran.label %>
+				TAHUN PELAJARAN <%= cmsSetup.tahunpelajaran %>
 			</p>
 			<table border="0" width="100%" cellspacing="0" cellpadding="0">
 				<tr>
@@ -129,7 +132,7 @@
 					<td width="30%" class="textdes">: <%= dataSiswa.nama %></td>
 					<td width="18%">&nbsp;</td>
 					<td width="16%" class="texttitle">Tahun Pelajaran</td>
-					<td width="20%" class="textdes">: <%= cmsSetup.tahunpelajaran.label %></td>
+					<td width="20%" class="textdes">: <%= cmsSetup.tahunpelajaran %></td>
 				</tr>
 			</table>
 			<table border="1" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 25px; border: 1px solid #000 ;">
@@ -180,10 +183,6 @@
 					<td class="isiTable2"><%= dataSiswa.kehadiran.alfa %></td>
 				</tr>
 			</table>
-			<br/><br/><br/><br/><br/>
-			<br/><br/><br/><br/><br/>
-			<!-- <br/><br/><br/><br/><br/>
-			<br/><br/><br/><br/><br/> -->
 		</div>
 	</div>
 </body>
