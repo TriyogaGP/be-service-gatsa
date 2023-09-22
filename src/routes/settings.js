@@ -21,6 +21,8 @@ const {
   crudCMSSetting,
   getBerkas,
   crudBerkas,
+  getCardRFID,
+  crudCardRFID,
   optionsMenu,
   optionsAgama,
   optionsHobi,
@@ -39,6 +41,8 @@ const {
   optionsWilayah,
   optionsBerkas,
   getUserBroadcast,
+  getListExam,
+  getRFID,
   testing,
 } = require('../controllers/settings.controler')
 const { uploadFile } = require('../middleware/uploadFile')
@@ -67,12 +71,11 @@ module.exports = models => {
   route.route('/optionsTransportasi').get(optionsTransportasi(models))
   route.route('/optionsWilayah').get(optionsWilayah(models))
   route.route('/optionsBerkas').get(optionsBerkas(models))
+  route.route('/listExam').get(verifyToken, getListExam(models))
   
   route.route('/updateFile').post(uploadFile, updateFile(models))
   route.route('/updateBerkas').post(uploadBerkas, updateBerkas(models))
   
-  route.route('/testing').get(testing(models))
-
   route.route('/kategoriNotifikasi')
     .get(verifyToken, getKategoriNotifikasi(models))
   route.route('/dataUserBroadcast')
@@ -100,6 +103,13 @@ module.exports = models => {
   route.route('/Berkas')
     .get(verifyToken, getBerkas(models))
     .post(crudBerkas(models))
+  route.route('/data-rfid')
+    .get(verifyToken, getCardRFID(models))
+    .post(crudCardRFID(models))
+  
+  route.route('/rfid').get(getRFID(models))
+
+  route.route('/testing').get(testing(models))
   
   return route;
 }

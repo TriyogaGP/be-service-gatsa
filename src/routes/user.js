@@ -25,7 +25,11 @@ const {
   getQuestionExam,
   postQuestionExam,
   getJadwalExam,
+  getJadwalExamID,
+  getRandomQuestion,
   postJadwalExam,
+  postJawabanExam,
+  postKoreksiExam,
   testing,
 } = require('../controllers/user.controller')
 const { uploadFile } = require('../middleware/uploadFile')
@@ -60,7 +64,15 @@ module.exports = models => {
   route.route('/jadwal-exam')
     .get(verifyToken, getJadwalExam(models))  
     .post(verifyToken, postJadwalExam(models))
-
+    
+  route.route('/koreksi-exam')
+    .post(verifyToken, postKoreksiExam(models))
+  route.route('/simpan-jwaban-exam')
+    .post(verifyToken, postJawabanExam(models))
+  route.route('/jadwal-exam-id/:idJadwalExam')
+    .get(verifyToken, getJadwalExamID(models))
+  route.route('/kode-soal-random')
+    .get(verifyToken, getRandomQuestion(models))
   route.route('/walikelas')
     .get(verifyToken, getWaliKelas(models))
   route.route('/update-peringkat')
@@ -81,10 +93,8 @@ module.exports = models => {
     .get(verifyToken, pdfCreate(models))
   route.route('/pdfcreate-raport/:uid')
     .get(verifyToken, pdfCreateRaport(models))
-
   route.route('/list-siswasiswi')
     .get(listSiswaSiswi(models))
-
   route.route('/dashboard')
     .get(verifyToken, getDashboard(models))
 

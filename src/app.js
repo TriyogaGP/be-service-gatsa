@@ -92,6 +92,10 @@ try {
       const dataPercakapan = await getPercakapan(data.room);
       io.emit("percakapan", { dataPercakapan, room: data.room });
     });
+
+    //--------------------------------------------------------------------//
+
+    socket.emit('event', { message: 'Connected !!!!' });
   });
 
   // //cron job

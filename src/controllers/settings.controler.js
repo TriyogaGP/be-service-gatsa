@@ -9,14 +9,21 @@ const {
 	decrypt,
 	convertDateTime,
 	createKSUID,
+	UpperFirstLetter,
+	inisialuppercaseLetterFirst,
 	buildMysqlResponseWithPagination
 } = require('@triyogagp/backend-common/utils/helper.utils')
 const { Op } = require('sequelize')
 const sequelize = require('sequelize')
 const { logger } = require('../configs/db.winston')
 const _ = require('lodash')
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
 const dotenv = require('dotenv');
 dotenv.config();
+dayjs.extend(utc);
+dayjs.extend(timezone);
 const BASE_URL = process.env.BASE_URL
 
 function updateFile (models) {
@@ -823,6 +830,108 @@ function crudBerkas (models) {
   }  
 }
 
+function getCardRFID (models) {
+  return async (req, res, next) => {
+		let { sort, page = 1, limit = 10, keyword } = req.query
+    let where = {}
+		let order = []
+    try {
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			order = [
+				['createdAt', sort ? sort : 'ASC'],
+			]
+
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ rfid : { [Op.like]: `%${keyword}%` }},
+					{ '$User.nama$' : { [Op.like]: `%${keyword}%` }},
+				]
+			} : {}
+
+			where = whereKey
+
+			const { count, rows: dataKartu } = await models.DataKartu.findAndCountAll({
+				where,
+				include: [
+					{ 
+						model: models.User,
+						attributes: ['idUser', 'nama', 'email', 'consumerType'],
+						include: [
+							{ 
+								model: models.UserDetail,
+								attributes: ['nomorInduk'],
+							},
+						],
+					},
+				],
+				order,
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+
+			const responseData = buildMysqlResponseWithPagination(
+				dataKartu.map(val => {
+					return {
+						idTabel: val.idTabel,
+						idUser: val.idUser ? val.idUser : '-',
+						consumerType: val.User ? val.User.consumerType : '-',
+						// nama: val.User ? `${val.User.nama} (${val.User.consumerType === 3 ? 'Guru' : 'Siswa - Siswi'})` : '-',
+						nama: val.User ? val.User.nama : '-',
+						email: val.User ? val.User.email : '-',
+						nomorInduk: val.User ? val.User.UserDetail.nomorInduk : '-',
+						rfid: val.rfid,
+						use: val.use,
+						status: val.status,
+					}
+				}),
+				{ limit, page, total: count }
+			)
+
+			return OK(res, responseData);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function crudCardRFID (models) {
+  return async (req, res, next) => {
+		let body = { ...req.body }
+		let where = {}
+    try {
+			if(body.jenis == 'EDIT'){
+				if(await models.DataKartu.findOne({where: {idUser: body.idUser, [Op.not]: [{rfid: body.rfid}]}})) return NOT_FOUND(res, 'User sudah di pilih !')
+				kirimdata = {
+					idUser: body.idUser,
+					use: 1,
+				}
+				await models.DataKartu.update(kirimdata, { where: { rfid: body.rfid } })
+			}else if(body.jenis == 'DELETE'){
+				await models.DataKartu.destroy({ where: { rfid: body.rfid } })	
+			}else if(body.jenis == 'STATUSRECORD'){
+				kirimdata = { 
+					idUser: null,
+					status: body.status,
+					use: 0,
+				}
+				await models.DataKartu.update(kirimdata, { where: { rfid: body.rfid } })
+			}else if(body.jenis == 'USERECORD'){
+				kirimdata = { 
+					idUser: null,
+					use: body.use,
+				}
+				await models.DataKartu.update(kirimdata, { where: { rfid: body.rfid } })
+			}else{
+				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			}
+
+			return OK(res);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
 function optionsMenu (models) {
   return async (req, res, next) => {
     let { id_role } = req.query
@@ -1167,14 +1276,14 @@ function getUserBroadcast (models) {
 					}
 				}))
 				if(pushSiswa.length && pushGuru.length){
-					// return OK(res, [{header: 'Guru'}, ...pushGuru, {divider: true}, {header: 'Siswa-Siswi'}, ...pushSiswa]);
-					return OK(res, [...pushGuru, ...pushSiswa]);
+					return OK(res, [{ type: 'subheader', title: 'Guru' }, {divider: true}, ...pushGuru, {divider: true}, {type: 'subheader', title: 'Siswa-Siswi'}, {divider: true}, ...pushSiswa]);
+					// return OK(res, [...pushGuru, ...pushSiswa]);
 				}else if(pushSiswa.length && !pushGuru.length){
-					// return OK(res, [{header: 'Siswa-Siswi'}, ...pushSiswa]);
-					return OK(res, [...pushSiswa]);
+					return OK(res, [{type: 'subheader', title: 'Siswa-Siswi'}, {divider: true}, ...pushSiswa]);
+					// return OK(res, [...pushSiswa]);
 				}else if(!pushSiswa.length && pushGuru.length){
-					// return OK(res, [{header: 'Guru'}, ...pushGuru]);
-					return OK(res, [...pushGuru]);
+					return OK(res, [{type: 'subheader', title: 'Guru'}, {divider: true}, ...pushGuru]);
+					// return OK(res, [...pushGuru]);
 				}
 			}else if(kategori === 'KELAS'){
 				const dataKelas = await models.Kelas.findAll({
@@ -1220,6 +1329,110 @@ function getUserBroadcast (models) {
 	}  
 }
 
+function getListExam (models) {
+  return async (req, res, next) => {
+		const { kelas } = req.query
+    try {
+			if(!kelas) return NOT_FOUND(res, 'param tidak ditemukan')
+      const dataExam = await models.JadwalExam.findAll({ where: { kelas: kelas, status: true } });
+			return OK(res, await Promise.all(dataExam.map(async val => {
+				const dataMapel = await models.Mengajar.findOne({ where: { kode: val.dataValues.mapel } });
+				const check = await models.AnswerExam.count({ where: { mapel: val.dataValues.mapel, kelas: kelas } });
+				return {
+					...val.dataValues,
+					mapel: dataMapel.label,
+					kondisi: check > 0,
+				}
+			})))
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getRFID (models) {
+	return async (req, res, next) => {
+		let { kode, absen, rfid } = req.query
+		try {
+			let payload;
+			if(kode === 'enroll'){
+				if(rfid === '') return OK(res, { kode: 0, pesan: "Silahkan scan New RFID!" })
+				const check = await models.DataKartu.count({ where: { rfid: rfid, status: true } })
+				if(!check){
+					payload = {
+						rfid: rfid,
+						use: 0,
+						status: 1,
+					}
+					await models.DataKartu.create(payload)
+					return OK(res, { kode: 1, pesan: "New RFID sudah diinputkan!" })
+				}else{
+					return OK(res, { kode: 2, pesan: "RFID sudah tersedia!" })
+				}
+			}else if(kode === 'access'){
+				if(rfid === '') return OK(res, { kode: 0, pesan: "Silahkan scan RFID!" })
+				const check = await models.DataKartu.findOne({ where: { rfid: rfid, use: true, status: true } })
+				if(check){
+					const dataSiswaSiswi = await models.User.findOne({
+						where: { consumerType: 4, idUser: check.idUser },
+						attributes: ['idUser', 'nama', 'email'],
+					});
+					let nama = dataSiswaSiswi.nama.split(' ')
+					let namaFirst = nama[0];
+					let gabungNama = [];
+					for(let i = 1; i < nama.length; i++){
+						gabungNama.push(`${inisialuppercaseLetterFirst(nama[i])}${i !== nama.length - 1 ? '.' : ''}`)
+					}
+
+					let dateNow = dayjs().format("YYYY-MM-DD")
+					if(absen === 'masuk'){
+						payload = {
+							idUser: dataSiswaSiswi.idUser,
+							kategori: 'Masuk',
+							absenTime: new Date(),
+						}
+						const count = await models.Absensi.count()
+						if(count === 0){ await models.Absensi.create(payload) }
+						const dataAbsen = await models.Absensi.findOne({ where: { idUser: dataSiswaSiswi.idUser, kategori: 'Masuk' }, order: [ ['idAbsen', 'DESC'] ] })
+						let dateNow_masuk = dayjs(dataAbsen.absenTime).format("YYYY-MM-DD")
+						if(dateNow !== dateNow_masuk){
+							await models.Absensi.create(payload)
+						}
+					}else if(absen === 'keluar'){
+						payload = {
+							idUser: dataSiswaSiswi.idUser,
+							kategori: 'Keluar',
+							absenTime: new Date(),
+						}
+						const count = await models.Absensi.count()
+						if(count === 0){ await models.Absensi.create(payload) }
+						const dataAbsen = await models.Absensi.findOne({ where: { idUser: dataSiswaSiswi.idUser, kategori: 'Keluar' }, order: [ ['idAbsen', 'DESC'] ] })
+						let dateNow_keluar = dayjs(dataAbsen.absenTime).format("YYYY-MM-DD")
+						if(dateNow !== dateNow_keluar){
+							await models.Absensi.create(payload)
+						}
+					}
+
+					return OK(res, {
+						kode: 1,
+						pesan: "Berhasil Absen!",
+						data: {
+							idUser: dataSiswaSiswi.idUser,
+							nama: `${UpperFirstLetter(namaFirst)}${gabungNama.length ? ` ${gabungNama.join('')}` : ''}`,
+							email: dataSiswaSiswi.email,
+							rfid: rfid,
+						}
+					})
+				}else{
+					return OK(res, { kode: 2, pesan: "Kartu belum digunakan!" })
+				}
+			}
+		} catch (err) {
+			return NOT_FOUND(res, err.message)
+		}
+	}
+}
+
 function testing (models) {
 	return async (req, res, next) => {
 		try {
@@ -1252,6 +1465,8 @@ module.exports = {
   crudCMSSetting,
   getBerkas,
   crudBerkas,
+  getCardRFID,
+  crudCardRFID,
   optionsMenu,
   optionsAgama,
   optionsHobi,
@@ -1270,5 +1485,7 @@ module.exports = {
   optionsWilayah,
   optionsBerkas,
   getUserBroadcast,
+  getListExam,
+  getRFID,
   testing,
 }
