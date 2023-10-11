@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const corsAllowed = require('../cors-allowed-origins.json')
 const auth = require('./routes/auth');
 const settings = require('./routes/settings');
 const user = require('./routes/user');
@@ -29,15 +30,25 @@ dayjs.extend(timezone);
 try {
   sequelizeInstance.authenticate();
   console.log('Connection has been established successfully.');
-  
-  // const corsOptions = { origin: "http://localhost:3000" };
-  // app.use(cors(corsOptions));
+
+  const corsOptions = {
+    origin: function (origin, callback) {
+      if((typeof origin !== 'undefined' && corsAllowed.origins.indexOf(origin) !== -1) || typeof origin === 'undefined') {
+        callback(null, true);
+      }else{
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  }
+
   // view engine setup
   app.set('views', path.join(__dirname, 'views'));
   app.set('view engine', 'ejs');
 
-  app.use(cors({credentials:true, origin:'*'}));
-  app.options("*", cors());
+  app.use(cors(corsOptions));
+  // app.use(cors({credentials:true, origin:'*'}));
+  // app.options("*", cors());
   // parse requests of content-type - application/json
   app.use(express.json({limit: '50mb'}));
   // parse requests of content-type - application/x-www-form-urlencoded

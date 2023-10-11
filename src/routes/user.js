@@ -17,6 +17,7 @@ const {
   getPenilaian,
   postPenilaian,
   downloadTemplate,
+  downloadTemplateNilai,
   importExcel,
   exportExcel,
   pdfCreate,
@@ -85,6 +86,8 @@ module.exports = models => {
     .post(verifyToken, postPenilaian(models))
   route.route('/template/:roleID')
     .get(downloadTemplate(models))
+  route.route('/templateNilai/:kelas/:mapel')
+    .get(downloadTemplateNilai(models))
   route.route('/importexcel')
     .post(uploadFile, importExcel(models))
   route.route('/exportexcel')
@@ -99,7 +102,7 @@ module.exports = models => {
     .get(verifyToken, getDashboard(models))
 
   route.route('/testing')
-    .post(testing(models))
+    .get(testing(models))
   
   return route;
 }

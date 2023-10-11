@@ -3,8 +3,8 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const env = process.env.NODE_ENV || 'development'
-const config = require(__dirname + '/config.json')[env]
-
+const port = process.env.DB_PORT || '3306'
+const config = require(__dirname + '/config.json')[port][env]
 // create connection
 const sequelizeInstance = new Sequelize(config.database, config.username, config.password, {
     host: config.host,

@@ -16,6 +16,8 @@ const {
 const { Op } = require('sequelize')
 const sequelize = require('sequelize')
 const { logger } = require('../configs/db.winston')
+const fs = require('fs');
+const path = require('path');
 const _ = require('lodash')
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
@@ -819,6 +821,15 @@ function crudBerkas (models) {
 					statusAktif: body.statusAktif 
 				}
 				await models.Berkas.update(kirimdata, { where: { idBerkas: body.idBerkas } })
+			}else if(body.jenis == 'DELETE'){
+				await sequelizeInstance.transaction(async trx => {
+					const dataBerkas = await models.Berkas.findOne({
+						where: { idBerkas: body.idBerkas },
+					});
+					let path_file = path.join(__dirname, `../public/berkas/${dataBerkas.dataValues.file}`);
+					await models.Berkas.destroy({ where: { idBerkas: body.idBerkas } }, { transaction: trx });
+					fs.unlinkSync(path_file);
+				})
 			}else{
 				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
 			}
