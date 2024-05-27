@@ -12,12 +12,12 @@ const storage = multer.diskStorage({
 	filename: (req, file, callBack) => {
 		const { body } = req;
 		const { jenis, nama_file } = body
-		if(jenis == 'image'){
-			let extension = file.mimetype.split('/')
-			callBack(null, nama_file + '.' + extension[1])
-		}else {
-			callBack(null, nama_file + path.extname(file.originalname))
-		}
+		// if(jenis == 'image'){
+		let extension = file.mimetype.split('/')
+		callBack(null, nama_file + '.' + extension[1])
+		// }else {
+		// 	callBack(null, nama_file + path.extname(file.originalname))
+		// }
 	}
 })
 

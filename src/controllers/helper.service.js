@@ -114,8 +114,47 @@ async function _transportasiOption(params) {
 
 async function _wilayahOption(params) {
 	const { models, kode } = params
-	const wilayah = await models.Wilayah.findOne({ where: { kode }, attributes: ['kode', 'nama', 'kodePos'] })
+	const wilayah = await models.Wilayah.findOne({ where: { kode }, attributes: ['kode', 'nama', 'kodePos'], order: [['kode', 'ASC']] })
 	return wilayah
+}
+
+async function _wilayah2023Option(params) {
+	const { models, kode, bagian } = params
+	let attributes = ['idLocation', [sequelize.fn('LEFT', sequelize.col('kode'), kode.length), 'kode']]
+	if(bagian === 'provinsi') { attributes.push(['nama_prov', 'nama']) }
+	if(bagian === 'kabkota') { attributes.push('jenisKabKota', ['nama_kabkota', 'nama']) }
+	if(bagian === 'kecamatan') { attributes.push(['nama_kec', 'nama']) }
+	if(bagian === 'keldes') { attributes.push('jenisKelDes', ['nama_keldes', 'nama'], 'kodePos') }
+	const wilayah = await models.Wilayah2023.findOne({ where: { kode: { [Op.like]: `${kode}%`} }, attributes, order: [['kode', 'ASC']] })
+	return wilayah
+}
+
+async function _wilayahCount(params) {
+	const { models, kode } = params
+	const dataWilayah = await models.Wilayah.findAll({ where: { kode : { [Op.like]: `${kode}%` } } });
+	const resultUser = dataWilayah.reduce((memo, data) => {
+		const tmp = memo
+		const { kategori } = data
+		if((kategori === 'Kabupaten')) tmp.kabupaten += 1
+		if((kategori === 'Kota')) tmp.kota += 1
+		if((kategori === 'Kecamatan')) tmp.kecamatan += 1
+		if((kategori === 'Kelurahan')) tmp.kelurahan += 1
+		if((kategori === 'Desa')) tmp.desa += 1
+		return tmp
+	}, {
+		kabupaten: 0,
+		kota: 0,
+		kecamatan: 0,
+		kelurahan: 0,
+		desa: 0,
+	})
+	return resultUser
+}
+
+async function _KelasListOption(params) {
+	const { models, status } = params
+	const kelas = await models.Kelas.findAll({ where: { status }, order: [['idKelas','ASC']] })
+	return kelas
 }
 
 // async function _provinsiOption(params) {
@@ -164,5 +203,8 @@ module.exports = {
 	_statustempattinggalOption,
 	_jarakrumahOption,
 	_transportasiOption,
+	_KelasListOption,
 	_wilayahOption,
+	_wilayah2023Option,
+	_wilayahCount,
 }

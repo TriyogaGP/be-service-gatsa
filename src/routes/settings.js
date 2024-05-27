@@ -39,10 +39,15 @@ const {
   optionsJarakRumah,
   optionsTransportasi,
   optionsWilayah,
+  optionsWilayah2023,
   optionsBerkas,
   getUserBroadcast,
   getListExam,
   getRFID,
+  getWilayah,
+  crudWilayah,
+  getWilayah2023,
+  crudWilayah2023,
   testing,
 } = require('../controllers/settings.controler')
 const { uploadFile } = require('../middleware/uploadFile')
@@ -70,6 +75,7 @@ module.exports = models => {
   route.route('/optionsJarakRumah').get(optionsJarakRumah(models))
   route.route('/optionsTransportasi').get(optionsTransportasi(models))
   route.route('/optionsWilayah').get(optionsWilayah(models))
+  route.route('/optionsWilayah2023').get(optionsWilayah2023(models))
   route.route('/optionsBerkas').get(optionsBerkas(models))
   route.route('/listExam').get(verifyToken, getListExam(models))
   
@@ -108,6 +114,12 @@ module.exports = models => {
     .post(crudCardRFID(models))
   
   route.route('/rfid').get(getRFID(models))
+  route.route('/wilayah')
+    .get(getWilayah(models))
+    .post(crudWilayah(models))
+  route.route('/wilayah2023')
+    .get(getWilayah2023(models))
+    .post(crudWilayah2023(models))
 
   route.route('/testing').get(testing(models))
   

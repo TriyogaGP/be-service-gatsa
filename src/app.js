@@ -77,7 +77,7 @@ try {
 
   // SocketIO
   io.on("connection", (socket) => {
-    console.log(`Socket.IO connected ${socket.id}`);
+    // console.log(`Socket.IO connected ${socket.id}`);
 
     socket.on("dataonline", async () => {
       const dataOnline = await getUserOnline();
@@ -109,60 +109,21 @@ try {
     socket.emit('event', { message: 'Connected !!!!' });
   });
 
-  // //cron job
-  //   const { cronTransaksi, cronTransaksiDaily, cronUserActive } = require('./utils/cron.utils')
-  //   //transaksi
-  //   let transaksi = cron.schedule('0 1 * * *', async () => {
-  //     console.log('cron transaksi', new Date());
-  //     let response = await cronTransaksi(models)
-  //     if(response == 'success') {
-  //       console.log('selesai simpan data');
-  //     }
-  //   }, {
-  //     scheduled: true,
-  //     timezone: "Asia/Jakarta"
-  //   });
+  //cron job
+    const { cronTemporaryFile } = require('./utils/cron.utils')
+    //update Temporary File
+    let temporaryfile = cron.schedule('0 1 * * *', async () => {
+      console.log('cron update Temporary File', new Date());
+      let response = await cronTemporaryFile(models)
+      if(response == 'success') {
+        console.log('selesai ubah data');
+      }
+    }, {
+      scheduled: true,
+      timezone: "Asia/Jakarta"
+    });
 
-  //   //transaksi daily
-  //   let transaksidaily = cron.schedule('5 1 * * *', async () => {
-  //     console.log('cron transaksi', new Date());
-  //     let response = await cronTransaksiDaily(models)
-  //     if(response == 'success') {
-  //       console.log('selesai simpan data');
-  //     }
-  //   }, {
-  //     scheduled: true,
-  //     timezone: "Asia/Jakarta"
-  //   });
-    
-  //   //user active member
-  //   let userActiveMember = cron.schedule('10 1 * * *', async () => {
-  //     console.log('cron user member', new Date());
-  //     let response = await cronUserActive(models, '1', '0')
-  //     if(response == 'success') {
-  //       console.log('selesai simpan data');
-  //     }
-  //   }, {
-  //     scheduled: true,
-  //     timezone: "Asia/Jakarta"
-  //   });
-    
-  //   //user active customer
-  //   let userActiveCustomer = cron.schedule('15 1 * * *', async () => {
-  //     console.log('cron user customer', new Date());
-  //     let response = await cronUserActive(models, '0', '0')
-  //     if(response == 'success') {
-  //       console.log('selesai simpan data');
-  //     }
-  //   }, {
-  //     scheduled: true,
-  //     timezone: "Asia/Jakarta"
-  //   });
-
-  //   transaksi.start();
-  //   transaksidaily.start();
-  //   userActiveMember.start();
-  //   userActiveCustomer.start();
+    temporaryfile.start();
 
   const PORT = process.env.PORT;
   server.listen(PORT, () => {

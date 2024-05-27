@@ -78,7 +78,7 @@
 				</td>
 				<td height="110px">
 					<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
-					<p class="alamat">Alamat: <%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
+					<p class="alamat">Alamat: <%= cmsSetup.alamat %> <%= cmsSetup.kelurahan.label %> <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %><br>Phone <%= cmsSetup.telepon %></p>
 				</td>
 			</tr>
 			<tr>
@@ -157,7 +157,7 @@
 				<tr>
 					<td class="isi" width="35%" style="vertical-align: top;">Alamat</td>
 					<td width="2%" style="vertical-align: top;">:</td>
-					<td class="isi" width="63%"><%= dataSiswa.alamat+', '+dataSiswa.kelurahan+', '+dataSiswa.kecamatan+', '+dataSiswa.kabKota+', '+dataSiswa.provinsi+', '+dataSiswa.kodePos %></td>
+					<td class="isi" width="63%" style="text-transform: uppercase"><%= dataSiswa.alamat+', '+dataSiswa.kelurahan+', '+dataSiswa.kecamatan+', '+dataSiswa.kabKota+', '+dataSiswa.provinsi+', '+dataSiswa.kodePos %></td>
 				</tr>
 				<tr>
 					<td class="isi" width="35%">Kelas</td>

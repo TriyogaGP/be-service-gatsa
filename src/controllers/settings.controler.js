@@ -9,12 +9,18 @@ const {
 	decrypt,
 	convertDateTime,
 	createKSUID,
+	makeRandom,
 	UpperFirstLetter,
 	inisialuppercaseLetterFirst,
 	buildMysqlResponseWithPagination
 } = require('@triyogagp/backend-common/utils/helper.utils')
-const { Op } = require('sequelize')
+const {
+	_wilayahOption,
+	_wilayahCount,
+} = require('../controllers/helper.service')
+const { Op, fn } = require('sequelize')
 const sequelize = require('sequelize')
+const { sequelizeInstance } = require('../configs/db.config');
 const { logger } = require('../configs/db.winston')
 const fs = require('fs');
 const path = require('path');
@@ -27,6 +33,15 @@ dotenv.config();
 dayjs.extend(utc);
 dayjs.extend(timezone);
 const BASE_URL = process.env.BASE_URL
+
+function formatInterval(minutes) {
+  let interval = [
+    Math.floor(minutes / 60).toString(),  //hours ("1" - "12")
+    (minutes % 60).toString()             //minutes ("1" - "59")
+  ];
+  // return interval[0].padStart(2, '0') + ' Jam ' + interval[1].padStart(2, '0') + ' Menit'
+  return interval[0] + ' Jam ' + interval[1] + ' Menit'
+}
 
 function updateFile (models) {
   return async (req, res, next) => {
@@ -42,6 +57,7 @@ function updateFile (models) {
 				body.field == 'ktp' ? { fcKTPOrtu: body.nama_folder+'/'+body.namaFile } : 
 				body.field == 'aktalahir' ? { fcAktaLahir: body.nama_folder+'/'+body.namaFile } : 
 				body.field == 'skl' ? { fcSKL: body.nama_folder+'/'+body.namaFile } : 
+				body.field == 'signature' ? { signature: body.nama_folder+'/'+body.namaFile } : 
 				{ fotoProfil: body.nama_folder+'/'+body.namaFile }
 				await models.UserDetail.update(kirimdata, { where: { idUser: body.idUser } })
 			}else if(body.table == 'CMSSetting'){
@@ -75,6 +91,13 @@ function updateBerkas (models) {
 					file: body.namaFile,
 				}
 				await models.Berkas.create(kirimdata)
+			}else if(body.table == 'QuestionExam'){
+				await models.TemporaryFile.create({ 
+					kode: makeRandom(10),
+					folder: body.folder,
+					file: body.namaFile,
+					use: 0,
+				})
 			}
 			return OK(res, body);
     } catch (err) {
@@ -190,12 +213,12 @@ function crudMenu (models) {
 				where = { 
 					statusAktif: true,
 					[Op.or]: [
-						{ 
-							[Op.and]: [
-								{ kategori: body.kategori },
-								{ menuRoute: body.menu_route },
-							]
-						},
+						// { 
+						// 	[Op.and]: [
+						// 		{ kategori: body.kategori },
+						// 		{ menuRoute: body.menu_route },
+						// 	]
+						// },
 						{ 
 							[Op.and]: [
 								{ menuRoute: body.menu_route },
@@ -824,11 +847,12 @@ function crudBerkas (models) {
 			}else if(body.jenis == 'DELETE'){
 				await sequelizeInstance.transaction(async trx => {
 					const dataBerkas = await models.Berkas.findOne({
-						where: { idBerkas: body.idBerkas },
+						where: { idBerkas: body.idBerkas }
 					});
-					let path_file = path.join(__dirname, `../public/berkas/${dataBerkas.dataValues.file}`);
-					await models.Berkas.destroy({ where: { idBerkas: body.idBerkas } }, { transaction: trx });
+					const { file } = dataBerkas.dataValues
+					let path_file = path.join(__dirname, `../public/berkas/${file}`);
 					fs.unlinkSync(path_file);
+					await models.Berkas.destroy({ where: { idBerkas: body.idBerkas } }, { transaction: trx });
 				})
 			}else{
 				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
@@ -973,13 +997,24 @@ function optionsMenu (models) {
 						menuRoute: dataMenu.menuRoute,
 						menuText: dataMenu.menuText,
 						menuIcon: dataMenu.menuIcon,
-						menuSequence: dataMenu.menuSequence,
+						menuSequence: id_role === '4' ? dataMenu.menuSequence : dataMenu.menuSequence + 1,
 						statusAktif: dataMenu.statusAktif,
-						kondisi: val.kondisi, 
+						kondisi: val.kondisi,
 						subMenu: dataSubMenuOrderBy.filter(value => value.statusAktif)
 					};
 					return objectBaru
 				}))
+				if(id_role !== '4'){
+					kumpul.push({
+						menuRoute: '/dashboard',
+						menuText: 'Dashboard',
+						menuIcon: 'mdi mdi-view-dashboard',
+						menuSequence: 1,
+						statusAktif: true,
+						kondisi: false, 
+						subMenu: []
+					})
+				}
 				let dataMenuOrderBy = _.orderBy(kumpul, 'menuSequence', 'asc')
 				let objectBaru = Object.assign(value, { menu: dataMenuOrderBy.filter(value => value.statusAktif) });
 				return objectBaru
@@ -1167,11 +1202,11 @@ function optionsTransportasi (models) {
 function optionsWilayah (models) {
   return async (req, res, next) => {
 		let { bagian, KodeWilayah } = req.query
-		let jmlString = bagian == 'provinsi' ? 2 : bagian == 'kabkotaOnly' ? 5 : KodeWilayah.length
+		let jmlString = bagian == 'provinsi' ? 2 : bagian == 'kabkotaOnly' ? 5 : bagian == 'kecamatanOnly' ? 8 : bagian == 'kelurahanOnly' ? 13 : KodeWilayah.length
 		let whereChar = (jmlString==2?5:(jmlString==5?8:13))
     let where = {}
 		try {
-			if(bagian == 'provinsi' || bagian == 'kabkotaOnly') {
+			if(bagian == 'provinsi' || bagian == 'kabkotaOnly' || bagian == 'kecamatanOnly' || bagian == 'kelurahanOnly') {
 				where = sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), jmlString)
 			}else{
 				where = { 
@@ -1188,7 +1223,39 @@ function optionsWilayah (models) {
 			const dataWilayah = await models.Wilayah.findAll({
 				where,
 				// attributes: [['kode', 'value'], ['nama', 'text'], 'kodePos']
-				attributes: ['kode', 'nama', 'kodePos']
+				attributes: ['kode', 'nama', 'kodePos'],
+				order: [['kode', 'ASC']]
+			});
+
+			return OK(res, dataWilayah);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function optionsWilayah2023 (models) {
+  return async (req, res, next) => {
+		let { bagian, KodeWilayah } = req.query
+		let jmlString = bagian == 'provinsi' ? 2 : bagian == 'kabkotaOnly' ? 5 : bagian == 'kecamatanOnly' ? 8 : bagian == 'kelurahanOnly' ? 13 : KodeWilayah.length
+		let whereChar = bagian === 'kabkota' || bagian === 'kecamatan' || bagian === 'kelurahan' ? (jmlString == 2 ? 5 : (jmlString == 5 ? 8 : 13)) : jmlString
+    let where = {}
+    let attributes = ['idLocation', [sequelize.fn('LEFT', sequelize.col('kode'), whereChar), 'kode']]
+		try {
+			if(bagian === 'kabkota' || bagian === 'kecamatan' || bagian === 'kelurahan')
+			where = { 
+				kode: { [Op.like]: `${KodeWilayah}%` },
+				statusAktif: true,
+			}
+			if(bagian === 'provinsi') { attributes.push(['nama_prov', 'nama']) }
+			if(bagian === 'kabkotaOnly' || bagian === 'kabkota') { attributes.push('jenisKabKota', ['nama_kabkota', 'nama']) }
+			if(bagian === 'kecamatanOnly' || bagian === 'kecamatan') { attributes.push(['nama_kec', 'nama']) }
+			if(bagian === 'kelurahanOnly' || bagian === 'kelurahan') { attributes.push('jenisKelDes', ['nama_keldes', 'nama'], 'kodePos') }
+			const dataWilayah = await models.Wilayah2023.findAll({
+				where,
+				attributes,
+				order: [['kode', 'ASC']],
+				group: [sequelize.fn('LEFT', sequelize.col('kode'), whereChar)]
 			});
 
 			return OK(res, dataWilayah);
@@ -1385,7 +1452,7 @@ function getRFID (models) {
 				const check = await models.DataKartu.findOne({ where: { rfid: rfid, use: true, status: true } })
 				if(check){
 					const dataSiswaSiswi = await models.User.findOne({
-						where: { consumerType: 4, idUser: check.idUser },
+						where: { consumerType: [3, 4], idUser: check.idUser },
 						attributes: ['idUser', 'nama', 'email'],
 					});
 					let nama = dataSiswaSiswi.nama.split(' ')
@@ -1396,37 +1463,118 @@ function getRFID (models) {
 					}
 
 					let dateNow = dayjs().format("YYYY-MM-DD")
+					let waktuNow = dayjs().format("HH:mm:ss")
+					let pesan = ''
+					let pesanAbsen = ''
+					let totime = dayjs();
+					let interval_masuk = totime.diff(dayjs().hour(8).minute(0), "minute");
+					let interval_keluar = totime.diff(dayjs().hour(16).minute(0), "minute");
 					if(absen === 'masuk'){
-						payload = {
-							idUser: dataSiswaSiswi.idUser,
-							kategori: 'Masuk',
-							absenTime: new Date(),
-						}
+						if(waktuNow < "06:00:00") return OK(res, {
+							kode: 2,
+							pesan: 'Waktu Absen belum tersedia',
+							pesanAbsen: '',
+							data: ''
+						})
 						const count = await models.Absensi.count()
-						if(count === 0){ await models.Absensi.create(payload) }
-						const dataAbsen = await models.Absensi.findOne({ where: { idUser: dataSiswaSiswi.idUser, kategori: 'Masuk' }, order: [ ['idAbsen', 'DESC'] ] })
-						let dateNow_masuk = dayjs(dataAbsen.absenTime).format("YYYY-MM-DD")
-						if(dateNow !== dateNow_masuk){
+						if(count === 0){ 
+							pesan = 'Berhasil Absen!'
+							pesanAbsen = waktuNow >= "06:00:00" && waktuNow <= "08:00:00" ? 'absen tidak telat' : 'absen telat'
+							payload = {
+								idUser: dataSiswaSiswi.idUser,
+								kategori: 'Masuk',
+								absenTime: new Date(),
+								absenTimeLate: waktuNow >= "06:00:00" && waktuNow <= "08:00:00" ? null : formatInterval(interval_masuk),
+								pesanAbsen,
+							}
 							await models.Absensi.create(payload)
+						}else{
+							const dataAbsen = await models.Absensi.findOne({ where: { idUser: dataSiswaSiswi.idUser, kategori: 'Masuk' }, order: [ ['idAbsen', 'DESC'] ] })			
+							let dateNow_masuk = dayjs(dataAbsen.absenTime).format("YYYY-MM-DD")
+							if(dateNow !== dateNow_masuk){
+								if(waktuNow >= "06:00:00" && waktuNow <= "08:00:00"){
+									pesan = 'Berhasil Absen!'
+									pesanAbsen = 'absen tidak telat'
+									payload = {
+										idUser: dataSiswaSiswi.idUser,
+										kategori: 'Masuk',
+										absenTime: new Date(),
+										absenTimeLate: null,
+										pesanAbsen,
+									}
+									await models.Absensi.create(payload)
+								}else if(waktuNow > "08:00:00" && waktuNow < "16:00:00"){
+									pesan = 'Berhasil Absen!'
+									pesanAbsen = 'absen telat'
+									payload = {
+										idUser: dataSiswaSiswi.idUser,
+										kategori: 'Masuk',
+										absenTime: new Date(),
+										absenTimeLate: formatInterval(interval_masuk),
+										pesanAbsen,
+									}
+									await models.Absensi.create(payload)
+								}
+							}else{
+								pesan = 'Sudah Absen!'
+							}
 						}
 					}else if(absen === 'keluar'){
-						payload = {
-							idUser: dataSiswaSiswi.idUser,
-							kategori: 'Keluar',
-							absenTime: new Date(),
-						}
+						if(waktuNow < "16:00:00") return OK(res, {
+							kode: 2,
+							pesan: 'Waktu Absen belum tersedia',
+							pesanAbsen: '',
+							data: ''
+						})
 						const count = await models.Absensi.count()
-						if(count === 0){ await models.Absensi.create(payload) }
-						const dataAbsen = await models.Absensi.findOne({ where: { idUser: dataSiswaSiswi.idUser, kategori: 'Keluar' }, order: [ ['idAbsen', 'DESC'] ] })
-						let dateNow_keluar = dayjs(dataAbsen.absenTime).format("YYYY-MM-DD")
-						if(dateNow !== dateNow_keluar){
+						if(count === 0){ 
+							pesan = 'Berhasil Absen!'
+							pesanAbsen = waktuNow >= "16:00:00" && waktuNow <= "19:00:00" ? 'absen tidak telat' : 'absen telat'
+							payload = {
+								idUser: dataSiswaSiswi.idUser,
+								kategori: 'Keluar',
+								absenTime: new Date(),
+								absenTimeLate: waktuNow >= "16:00:00" && waktuNow <= "19:00:00" ? null : formatInterval(interval_keluar),
+								pesanAbsen,
+							}
 							await models.Absensi.create(payload)
+						}else{
+							const dataAbsen = await models.Absensi.findOne({ where: { idUser: dataSiswaSiswi.idUser, kategori: 'Keluar' }, order: [ ['idAbsen', 'DESC'] ] })			
+							let dateNow_keluar = dayjs(dataAbsen.absenTime).format("YYYY-MM-DD")
+							if(dateNow !== dateNow_keluar){
+								if(waktuNow >= "16:00:00" && waktuNow <= "19:00:00"){
+									pesan = 'Berhasil Absen!'
+									pesanAbsen = 'absen tidak lembur'
+									payload = {
+										idUser: dataSiswaSiswi.idUser,
+										kategori: 'Keluar',
+										absenTime: new Date(),
+										absenTimeLate: null,
+										pesanAbsen,
+									}
+									await models.Absensi.create(payload)
+								}else if(waktuNow > "19:00:00" && waktuNow <= "23:59:00"){
+									pesan = 'Berhasil Absen!'
+									pesanAbsen = 'absen lembur'
+									payload = {
+										idUser: dataSiswaSiswi.idUser,
+										kategori: 'Keluar',
+										absenTime: new Date(),
+										absenTimeLate: formatInterval(interval_keluar),
+										pesanAbsen,
+									}
+									await models.Absensi.create(payload)
+								}
+							}else{
+								pesan = 'Sudah Absen!'
+							}
 						}
 					}
 
 					return OK(res, {
 						kode: 1,
-						pesan: "Berhasil Absen!",
+						pesan,
+						pesanAbsen,
 						data: {
 							idUser: dataSiswaSiswi.idUser,
 							nama: `${UpperFirstLetter(namaFirst)}${gabungNama.length ? ` ${gabungNama.join('')}` : ''}`,
@@ -1444,10 +1592,320 @@ function getRFID (models) {
 	}
 }
 
+// tabel m_wilayah
+function getWilayah (models) {
+	return async (req, res, next) => {
+		let { page = 1, limit = 20, keyword, bagian } = req.query
+		let jmlString = bagian == 'provinsiOnly' ? 2 : bagian == 'kabkotaOnly' ? 5 : bagian == 'kecamatanOnly' ? 8 : 13
+    let where = {}
+		try {
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			let whereChar = sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), jmlString)
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ nama : { [Op.like]: `%${keyword}%` }},
+					{ kode : { [Op.like]: `${keyword}%` }},
+				]
+			} : {}
+
+			where = { ...whereKey, whereChar }
+
+			const { count, rows: dataWilayah } = await models.Wilayah.findAndCountAll({
+				where,
+				order: [['kode', 'ASC']],
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+
+			const getResult = await Promise.all(dataWilayah.map(async val => {
+				const split = val.kode.split('.')
+				if(bagian === 'provinsiOnly'){
+					const countWilayah = await _wilayahCount({ models, kode: val.kode })
+					return {
+						idLocation: val.idLocation,
+						kode: val.kode,
+						provinsi: val.nama,
+						countWilayah,
+					}
+				}else if(bagian === 'kabkotaOnly'){
+					const provinsi = await _wilayahOption({ models, kode: split[0] })
+					const countWilayah = await _wilayahCount({ models, kode: val.kode })
+					return {
+						idLocation: val.idLocation,
+						kode: val.kode,
+						provinsi: provinsi ? provinsi.nama : '',
+						kabkota: val.nama,
+						kategori: val.kategori,
+						countWilayah,
+					}
+				}else if(bagian === 'kecamatanOnly'){
+					const provinsi = await _wilayahOption({ models, kode: split[0] })
+					const kabkota = await _wilayahOption({ models, kode: `${split[0]}.${split[1]}` })
+					const countWilayah = await _wilayahCount({ models, kode: val.kode })
+					return {
+						idLocation: val.idLocation,
+						kode: val.kode,
+						provinsi: provinsi ? provinsi.nama : '',
+						kabkota: kabkota ? kabkota.nama : '',
+						kecamatan: val.nama,
+						countWilayah,
+					}
+				}else if(bagian === 'kelurahanOnly'){
+					const provinsi = await _wilayahOption({ models, kode: split[0] })
+					const kabkota = await _wilayahOption({ models, kode: `${split[0]}.${split[1]}` })
+					const kecamatan = await _wilayahOption({ models, kode: `${split[0]}.${split[1]}.${split[2]}` })
+					return {
+						idLocation: val.idLocation,
+						kode: val.kode,
+						provinsi: provinsi ? provinsi.nama : '',
+						kabkota: kabkota ? kabkota.nama : '',
+						kecamatan: kecamatan ? kecamatan.nama : '',
+						kelurahan: val.nama,
+						kategori: val.kategori,
+						kodePos: val.kodePos,
+					}
+				}
+			}))
+
+			const responseData = buildMysqlResponseWithPagination(
+				getResult,
+				{ limit, page, total: count }
+			)
+
+			return OK(res, responseData);
+		} catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+		}
+	}
+}
+
+function getWilayah2023 (models) {
+	return async (req, res, next) => {
+		let { page = 1, limit = 20, keyword } = req.query
+    let where = {}
+		try {
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ kode : { [Op.like]: `${keyword}%` }},
+					{ namaProv : { [Op.like]: `%${keyword}%` }},
+					{ namaKabKota : { [Op.like]: `%${keyword}%` }},
+					{ namaKec : { [Op.like]: `%${keyword}%` }},
+					{ namaKelDes : { [Op.like]: `%${keyword}%` }},
+					{ kodePos : { [Op.like]: `${keyword}%` }},
+				]
+			} : {}
+			
+			const { count, rows: dataWilayah } = await models.Wilayah2023.findAndCountAll({
+				where: whereKey,
+				order: [['kode', 'ASC']],
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+
+			const getResult = await Promise.all(dataWilayah.map(async val => {
+				const split = val.kode.split('.')
+				return {
+					idLocation: val.idLocation,
+					kode: val.kode,
+					kodeProv: `${split[0]} - ${val.namaProv}`,
+					namaProv: `Provinsi ${val.namaProv}`,
+					kodeKabKota: `${split[0]}.${split[1]} - ${val.namaKabKota}`,
+					namaKabKota: `${val.jenisKabKota} ${val.namaKabKota}`,
+					kodeKec: `${split[0]}.${split[1]}.${split[2]} - ${val.namaKec}`,
+					namaKec: `Kecamatan ${val.namaKec}`,
+					namaKelDes: val.namaKelDes,
+					kodePos: val.kodePos,
+					jenisKabKota: val.jenisKabKota,
+					jenisKelDes: val.jenisKelDes,
+					statusAktif: val.statusAktif,
+				}
+			}))
+
+			let countProvinsi = await models.Wilayah2023.count({ where: { statusAktif: true }, group: ['namaProv'] })
+			let countKota = await models.Wilayah2023.count({ where: { jenisKabKota: 'Kota', statusAktif: true }, group: [sequelize.fn('LEFT', sequelize.col('kode'), 5)] })
+			let countKabupaten = await models.Wilayah2023.count({ where: { jenisKabKota: 'Kabupaten', statusAktif: true }, group: [sequelize.fn('LEFT', sequelize.col('kode'), 5)] })
+			let countKecamatan = await models.Wilayah2023.count({ where: { statusAktif: true }, group: [sequelize.fn('LEFT', sequelize.col('kode'), 8)] })
+			let countKelurahan = await models.Wilayah2023.count({ where: { jenisKelDes: 'Kelurahan', statusAktif: true } })
+			let countDesa = await models.Wilayah2023.count({ where: { jenisKelDes: 'Desa', statusAktif: true } })
+
+			const responseData = buildMysqlResponseWithPagination(
+				getResult,
+				{ limit, page, total: count }
+			)
+
+			return OK(res, { ...responseData, countWilayah: {
+				provinsi: countProvinsi.length,
+				kota: countKota.length,
+				kabupaten: countKabupaten.length,
+				kabkota: countKota.length + countKabupaten.length,
+				kecamatan: countKecamatan.length,
+				kelurahan: countKelurahan,
+				desa: countDesa,
+				keldes: countKelurahan + countDesa
+			} });
+		} catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+		}
+	}
+}
+
+function crudWilayah (models) {
+  return async (req, res, next) => {
+		let body = { ...req.body }
+		let where = {}
+    try {
+			if(body.jenis == 'ADD'){
+				kirimdata = {
+					kode: body.kode,
+					nama: body.nama,
+					kategori: body.kategori,
+					kodePos: body.kodePos,
+				}
+				await models.Wilayah.create(kirimdata)
+			}else if(body.jenis == 'EDIT'){
+				if(body.enabled){
+					kirimdata = {
+						kode: body.kode,
+						nama: body.nama,
+						kategori: body.kategori,
+						kodePos: body.kodePos,
+					}
+					await models.Wilayah.update(kirimdata, { where: { idLocation: body.idLocation } })
+				}else if(!body.enabled && body.bagian === 'kabkotaOnly'){
+					await sequelizeInstance.transaction(async trx => {
+						let whereCharKec = sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), 8)
+						let whereCharKel = sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), 13)
+						const dataWilayahKec = await models.Wilayah.findAll({
+							where: { ...{ kode : { [Op.like]: `${body.kodeTemp}%` }}, whereCharKec },
+							order: [['kode', 'ASC']],
+						});
+						await dataWilayahKec.map(async x => {
+							let splitkode = x.kode.split('.')
+							await models.Wilayah.update({kode: `${body.kode}.${splitkode[2]}`}, { where: { idLocation: x.idLocation } }, { transaction: trx })
+						})
+						const dataWilayahKel = await models.Wilayah.findAll({
+							where: { ...{ kode : { [Op.like]: `${body.kodeTemp}%` }}, whereCharKel },
+							order: [['kode', 'ASC']],
+						});
+						await dataWilayahKel.map(async x => {
+							let splitkode = x.kode.split('.')
+							await models.Wilayah.update({kode: `${body.kode}.${splitkode[2]}.${splitkode[3]}`}, { where: { idLocation: x.idLocation } }, { transaction: trx })
+						})
+						kirimdata = {
+							kode: body.kode,
+							nama: body.nama,
+							kategori: body.kategori,
+							kodePos: body.kodePos,
+						}
+						await models.Wilayah.update(kirimdata, { where: { idLocation: body.idLocation } }, { transaction: trx })
+					})
+				}else if(!body.enabled && body.bagian === 'kecamatanOnly'){
+					await sequelizeInstance.transaction(async trx => {
+						let whereCharKel = sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), 13)
+						const dataWilayahKel = await models.Wilayah.findAll({
+							where: { ...{ kode : { [Op.like]: `${body.kodeTemp}%` }}, whereCharKel },
+							order: [['kode', 'ASC']],
+						});
+						await dataWilayahKel.map(async x => {
+							let splitkode = x.kode.split('.')
+							await models.Wilayah.update({kode: `${body.kode}.${splitkode[3]}`}, { where: { idLocation: x.idLocation } }, { transaction: trx })
+						})
+						kirimdata = {
+							kode: body.kode,
+							nama: body.nama,
+							kategori: body.kategori,
+							kodePos: body.kodePos,
+						}
+						await models.Wilayah.update(kirimdata, { where: { idLocation: body.idLocation } }, { transaction: trx })
+					})
+				}else if(!body.enabled && body.bagian === 'kelurahanOnly'){
+					kirimdata = {
+						kode: body.kode,
+						nama: body.nama,
+						kategori: body.kategori,
+						kodePos: body.kodePos,
+					}
+					await models.Wilayah.update(kirimdata, { where: { idLocation: body.idLocation } })
+				}
+			}else{
+				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			}
+
+			return OK(res);
+    } catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function crudWilayah2023 (models) {
+  return async (req, res, next) => {
+		let body = { ...req.body }
+    try {
+			if(body.jenis == 'ADD'){
+				kirimdata = {
+					kode: body.kode,
+					namaProv: body.namaProv,
+					namaKabKota: body.namaKabKota,
+					namaKec: body.namaKec,
+					namaKelDes: body.namaKelDes,
+					kodePos: body.kodePos,
+					jenisKabKota: body.jenisKabKota,
+					jenisKelDes: body.jenisKelDes,
+					statusAktif: 1,
+				}
+				await models.Wilayah2023.create(kirimdata)
+			}else if(body.jenis == 'EDIT'){
+				kirimdata = {
+					kode: body.kode,
+					namaProv: body.namaProv,
+					namaKabKota: body.namaKabKota,
+					namaKec: body.namaKec,
+					namaKelDes: body.namaKelDes,
+					kodePos: body.kodePos,
+					jenisKabKota: body.jenisKabKota,
+					jenisKelDes: body.jenisKelDes,
+				}
+				await models.Wilayah2023.update(kirimdata, { where: { idLocation: body.idLocation } })
+			}else if(body.jenis == 'STATUSRECORD'){
+				kirimdata = {
+					statusAktif: body.statusAktif,
+				}
+				await models.Wilayah2023.update(kirimdata, { where: { idLocation: body.idLocation } })
+			}else{
+				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			}
+
+			return OK(res, kirimdata);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
 function testing (models) {
 	return async (req, res, next) => {
 		try {
-			res.send('haha')
+			let countProvinsi = await models.Wilayah2023.count({ group: ['namaProv'] })
+			let countKota = await models.Wilayah2023.count({ where: { jenisKabKota: 'Kota' }, group: [sequelize.fn('LEFT', sequelize.col('kode'), 5)] })
+			let countKabupaten = await models.Wilayah2023.count({ where: { jenisKabKota: 'Kabupaten' }, group: [sequelize.fn('LEFT', sequelize.col('kode'), 5)] })
+			let countKecamatan = await models.Wilayah2023.count({ group: [sequelize.fn('LEFT', sequelize.col('kode'), 8)] })
+			let countKelurahan = await models.Wilayah2023.count({ where: { jenisKelDes: 'Kelurahan' } })
+			let countDesa = await models.Wilayah2023.count({ where: { jenisKelDes: 'Desa' } })
+			return OK(res, {
+				provinsi: countProvinsi.length,
+				kota: countKota.length,
+				kabupaten: countKabupaten.length,
+				kabkota: countKota.length + countKabupaten.length,
+				kecamatan: countKecamatan.length,
+				kelurahan: countKelurahan,
+				desa: countDesa,
+				keldes: countKelurahan + countDesa
+			})
 		} catch (err) {
 			return NOT_FOUND(res, err.message)
 		}
@@ -1494,9 +1952,14 @@ module.exports = {
   optionsJarakRumah,
   optionsTransportasi,
   optionsWilayah,
+  optionsWilayah2023,
   optionsBerkas,
   getUserBroadcast,
   getListExam,
   getRFID,
+  getWilayah,
+  crudWilayah,
+  getWilayah2023,
+  crudWilayah2023,
   testing,
 }

@@ -81,6 +81,10 @@
 		.isiTable2{
 			text-align: center;
 		}
+		.ttd{ 
+			font-size: 10px; 
+			font-weight: bold;
+		}
 	</style>
 	<div class="container">
 		<table border="0" width="100%" cellspacing="0" cellpadding="0">
@@ -96,7 +100,7 @@
 				</td>
 				<td height="110px">
 					<p class="namasekolah"><%= cmsSetup.namasekolah %></p>
-					<p class="alamat">Alamat: <%= cmsSetup.alamat %> Kel. <%= cmsSetup.kelurahan.label %> Kec. <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %> Phone <%= cmsSetup.telepon %></p>
+					<p class="alamat">Alamat: <%= cmsSetup.alamat %> <%= cmsSetup.kelurahan.label %> <%= cmsSetup.kecamatan.label %> <%= cmsSetup.kabupatenkota.label %> <%= cmsSetup.kodepos %><br>Phone <%= cmsSetup.telepon %></p>
 				</td>
 			</tr>
 			<tr>
@@ -165,7 +169,7 @@
 					<td class="isiTable1" colspan="4"><b><%= dataSiswa.peringkat %></b> dari total <b><%= dataSiswa.jumlahSiswa %> Siswa/i</b></td>
 				</tr>
 			</table>
-			<table border="1" width="300px" cellspacing="0" cellpadding="0" style="margin-top: 25px; border: 1px solid #000 ;">
+			<table border="1" width="300px" cellspacing="0" cellpadding="0" style="margin-top: 20px; border: 1px solid #000 ;">
 				<tr class="headerTable">
 					<td>KEHADIRAN</td>
 					<td>TOTAL</td>
@@ -181,6 +185,68 @@
 				<tr class="contentTable">
 					<td class="isiTable1">Tanpa Keterangan</td>
 					<td class="isiTable2"><%= dataSiswa.kehadiran.alfa %></td>
+				</tr>
+			</table>
+			<table border="0" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 20px;">
+				<tr>
+					<td style="width: 50%;">
+						<table border="0" width="300px" cellspacing="0" cellpadding="0" style="float: left; margin-left: 80px;">
+							<tr class="ttd">
+								<td style="padding-bottom: 10px;">Mengetahui,</td>
+							</tr>
+							<tr class="ttd">
+								<td>Kepala Sekolah <%= cmsSetup.namasekolah %></td>
+							</tr>
+							<tr class="ttd">
+								<td style="padding: 10px 0px;">
+									<% if(dataSiswa.kepalaSekolah.signature !== null) { %>
+										<img
+											src="<%= dataSiswa.url %>image/<%= dataSiswa.kepalaSekolah.signature %>"
+											alt="ttd kepala sekolah"
+											width="80px"
+											height="80px"
+											style="display: inline-block;"
+										/>
+									<% } %>
+								</td>
+							</tr>
+							<tr class="ttd">
+								<td style="text-decoration: underline;"><%= dataSiswa.kepalaSekolah.nama %></td>
+							</tr>
+							<tr class="ttd">
+								<td>NIP. <%= dataSiswa.kepalaSekolah.nomorInduk %></td>
+							</tr>
+						</table>
+					</td>
+					<td style="width: 50%;">
+						<table border="0" width="300px" cellspacing="0" cellpadding="0" style="float: right;">
+							<tr class="ttd">
+								<td style="padding-bottom: 10px;"><%= dataSiswa.ttd.tempat %>, <%= dataSiswa.ttd.tanggal %></td>
+							</tr>
+							<tr class="ttd">
+								<td>Wali Kelas <%= dataSiswa.kelas %></td>
+							</tr>
+							<tr class="ttd">
+								<td style="padding: 10px 0px;">
+									<% if(dataSiswa.waliKelas.signature !== null) { %>
+										<img
+											src="<%= dataSiswa.url %>image/<%= dataSiswa.waliKelas.signature %>"
+											alt="ttd wali kelas"
+											width="80px"
+											height="80px"
+											style="display: inline-block;"
+										/>
+									<% } %>
+								</td>
+							</tr>
+							<tr class="ttd">
+								<td style="text-decoration: underline;"><%= dataSiswa.waliKelas.nama %></td>
+							</tr>
+							<tr class="ttd">
+								<td>NIP. <%= dataSiswa.waliKelas.nomorInduk %></td>
+							</tr>
+						</table>
+					</td>
 				</tr>
 			</table>
 		</div>

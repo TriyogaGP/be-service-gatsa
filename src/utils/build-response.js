@@ -14,7 +14,8 @@ const {
 	_statustempattinggalOption,
 	_jarakrumahOption,
 	_transportasiOption,
-	_wilayahOption,
+	// _wilayahOption,
+	_wilayah2023Option,
 } = require('../controllers/helper.service')
 const dotenv = require('dotenv');
 dotenv.config();
@@ -70,10 +71,10 @@ async function _buildResponseAdmin(models, dataAdmin) {
 		agama: dataAdmin.UserDetail.agama ? await _agamaOption({ models, kode: dataAdmin.UserDetail.agama }) : null,
 		telp: dataAdmin.UserDetail.telp,
 		alamat: dataAdmin.UserDetail.alamat,
-		provinsi: dataAdmin.UserDetail.provinsi ? await _wilayahOption({ models, kode: dataAdmin.UserDetail.provinsi }) : null,
-		kabKota: dataAdmin.UserDetail.kabKota ? await _wilayahOption({ models, kode: dataAdmin.UserDetail.kabKota }) : null,
-		kecamatan: dataAdmin.UserDetail.kecamatan ? await _wilayahOption({ models, kode: dataAdmin.UserDetail.kecamatan }) : null,
-		kelurahan: dataAdmin.UserDetail.kelurahan ? await _wilayahOption({ models, kode: dataAdmin.UserDetail.kelurahan }) : null,
+		provinsi: dataAdmin.UserDetail.provinsi ? await _wilayah2023Option({ models, kode: dataAdmin.UserDetail.provinsi, bagian: 'provinsi' }) : null,
+		kabKota: dataAdmin.UserDetail.kabKota ? await _wilayah2023Option({ models, kode: dataAdmin.UserDetail.kabKota, bagian: 'kabkota' }) : null,
+		kecamatan: dataAdmin.UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: dataAdmin.UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
+		kelurahan: dataAdmin.UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: dataAdmin.UserDetail.kelurahan, bagian: 'keldes' }) : null,
 		kodePos: dataAdmin.UserDetail.kodePos,
 		fotoProfil: dataAdmin.UserDetail.fotoProfil ? `${BASE_URL}image/${dataAdmin.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
 		isActive: dataAdmin.isActive,
@@ -98,10 +99,10 @@ async function _buildResponseStruktural(models, dataStruktural) {
 		agama: dataStruktural.UserDetail.agama ? await _agamaOption({ models, kode: dataStruktural.UserDetail.agama }) : null,
 		telp: dataStruktural.UserDetail.telp,
 		alamat: dataStruktural.UserDetail.alamat,
-		provinsi: dataStruktural.UserDetail.provinsi ? await _wilayahOption({ models, kode: dataStruktural.UserDetail.provinsi }) : null,
-		kabKota: dataStruktural.UserDetail.kabKota ? await _wilayahOption({ models, kode: dataStruktural.UserDetail.kabKota }) : null,
-		kecamatan: dataStruktural.UserDetail.kecamatan ? await _wilayahOption({ models, kode: dataStruktural.UserDetail.kecamatan }) : null,
-		kelurahan: dataStruktural.UserDetail.kelurahan ? await _wilayahOption({ models, kode: dataStruktural.UserDetail.kelurahan }) : null,
+		provinsi: dataStruktural.UserDetail.provinsi ? await _wilayah2023Option({ models, kode: dataStruktural.UserDetail.provinsi, bagian: 'provinsi' }) : null,
+		kabKota: dataStruktural.UserDetail.kabKota ? await _wilayah2023Option({ models, kode: dataStruktural.UserDetail.kabKota, bagian: 'kabkota' }) : null,
+		kecamatan: dataStruktural.UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: dataStruktural.UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
+		kelurahan: dataStruktural.UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: dataStruktural.UserDetail.kelurahan, bagian: 'keldes' }) : null,
 		kodePos: dataStruktural.UserDetail.kodePos,
 		pendidikanGuru: dataStruktural.UserDetail.pendidikanGuru ? await _pendidikanOption({ models, kode: dataStruktural.UserDetail.pendidikanGuru }) : null,
 		jabatanGuru: dataStruktural.UserDetail.jabatanGuru ? await _jabatanOption({ models, kode: dataStruktural.UserDetail.jabatanGuru }) : null,
@@ -115,6 +116,7 @@ async function _buildResponseStruktural(models, dataStruktural) {
 }
 
 async function _buildResponseSiswaSiswi(models, dataSiswaSiswi) {
+	const mapel = await models.Mengajar.findAll()
 	return {
 		idUser: dataSiswaSiswi.idUser,
 		consumerType: dataSiswaSiswi.consumerType,
@@ -140,7 +142,7 @@ async function _buildResponseSiswaSiswi(models, dataSiswaSiswi) {
 			namaSekolah: dataSiswaSiswi.UserDetail.namaSekolah,
 			npsn: dataSiswaSiswi.UserDetail.npsn,
 			alamatSekolah: dataSiswaSiswi.UserDetail.alamatSekolah,
-			kabkotSekolah: dataSiswaSiswi.UserDetail.kabkotSekolah ? await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.kabkotSekolah }) : null,
+			kabkotSekolah: dataSiswaSiswi.UserDetail.kabkotSekolah ? await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.kabkotSekolah, bagian: 'kabkota' }) : null,
 			noPesertaUN: dataSiswaSiswi.UserDetail.noPesertaUN,
 			noSKHUN: dataSiswaSiswi.UserDetail.noSKHUN,
 			noIjazah: dataSiswaSiswi.UserDetail.noIjazah,
@@ -180,10 +182,10 @@ async function _buildResponseSiswaSiswi(models, dataSiswaSiswi) {
 		dataAlamatOrangtua: {
 			telp: dataSiswaSiswi.UserDetail.telp,
 			alamat: dataSiswaSiswi.UserDetail.alamat,
-			provinsi: dataSiswaSiswi.UserDetail.provinsi ? await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.provinsi }) : null,
-			kabKota: dataSiswaSiswi.UserDetail.kabKota ? await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.kabKota }) : null,
-			kecamatan: dataSiswaSiswi.UserDetail.kecamatan ? await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.kecamatan }) : null,
-			kelurahan: dataSiswaSiswi.UserDetail.kelurahan ? await _wilayahOption({ models, kode: dataSiswaSiswi.UserDetail.kelurahan }) : null,
+			provinsi: dataSiswaSiswi.UserDetail.provinsi ? await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.provinsi, bagian: 'provinsi' }) : null,
+			kabKota: dataSiswaSiswi.UserDetail.kabKota ? await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.kabKota, bagian: 'kabkota' }) : null,
+			kecamatan: dataSiswaSiswi.UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
+			kelurahan: dataSiswaSiswi.UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.kelurahan, bagian: 'keldes' }) : null,
 			kodePos: dataSiswaSiswi.UserDetail.kodePos,
 		},
 		kelas: dataSiswaSiswi.UserDetail.kelas,
@@ -193,6 +195,7 @@ async function _buildResponseSiswaSiswi(models, dataSiswaSiswi) {
 			transportasi: dataSiswaSiswi.UserDetail.transportasi ? await _transportasiOption({ models, kode: dataSiswaSiswi.UserDetail.transportasi }) : null,
 		},
 		fotoProfil: dataSiswaSiswi.UserDetail.fotoProfil ? `${BASE_URL}image/${dataSiswaSiswi.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+		mapel,
 		berkas: {
 			fcIjazah: dataSiswaSiswi.UserDetail.fcIjazah ? `${BASE_URL}pdf/${dataSiswaSiswi.UserDetail.fcIjazah}` : null,
 			fcSKHUN: dataSiswaSiswi.UserDetail.fcSKHUN ? `${BASE_URL}pdf/${dataSiswaSiswi.UserDetail.fcSKHUN}` : null,
