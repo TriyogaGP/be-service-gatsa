@@ -14,7 +14,9 @@ const {
   updatePeringkat,
   getJadwalMengajar,
   getJadwalPelajaran,
+  getModulPelajaran,
   postJadwalMengajar,
+  getKelasSiswa,
   getPenilaian,
   postPenilaian,
   downloadTemplate,
@@ -40,61 +42,66 @@ const {
 } = require('../controllers/user.controller')
 const { uploadFile } = require('../middleware/uploadFile')
 const { verifyToken } = require('../middleware/VerifyToken');
+const { 
+  administratorValidation,
+  strukturalValidation,
+  siswasiswiValidation
+ } = require('../middleware/validator');
 
 
 module.exports = models => {
   const route = Router();
 
+  route.route('/dashboard')
+    .get(verifyToken, getDashboard(models))
   route.route('/admin')
     .get(verifyToken, getAdmin(models))
-    .post(verifyToken, postAdmin(models))
+    .post(verifyToken, administratorValidation, postAdmin(models))
   route.route('/admin/:uid')
     .get(verifyToken, getAdminbyUid(models))
-  
   route.route('/struktural')
     .get(verifyToken, getStruktural(models))
-    .post(verifyToken, postStruktural(models))
+    .post(verifyToken, strukturalValidation, postStruktural(models))
   route.route('/struktural/:uid')
     .get(verifyToken, getStrukturalbyUid(models))
-  
-  route.route('/siswasiswi')
+  route.route('/siswa-siswi')
     .get(verifyToken, getSiswaSiswi(models))
-    .post(verifyToken, postSiswaSiswi(models))
-  route.route('/siswasiswi/:uid')
+    .post(verifyToken, siswasiswiValidation, postSiswaSiswi(models))
+  route.route('/siswa-siswi/:uid')
     .get(verifyToken, getSiswaSiswibyUid(models))
-  
-  route.route('/question-exam')
-    .get(verifyToken, getQuestionExam(models))
-    .post(verifyToken, postQuestionExam(models))
-    
-  route.route('/jadwal-exam')
-    .get(getJadwalExam(models))  
-    .post(verifyToken, postJadwalExam(models))
-    
-  route.route('/list-pick')
-    .get(verifyToken, getListPickExam(models))
-    .post(verifyToken, postListPickExam(models))
-
-  route.route('/koreksi-exam')
-    .post(verifyToken, postKoreksiExam(models))
-  route.route('/simpan-jwaban-exam')
-    .post(verifyToken, postJawabanExam(models))
-  route.route('/jadwal-exam-id/:idJadwalExam')
-    .get(verifyToken, getJadwalExamID(models))
-  route.route('/kode-soal-random')
-    .get(verifyToken, getRandomQuestion(models))
-  route.route('/walikelas')
+  route.route('/wali-kelas')
     .get(verifyToken, getWaliKelas(models))
   route.route('/update-peringkat')
     .get(verifyToken, updatePeringkat(models))
-  route.route('/jadwalpelajaran')
+  route.route('/jadwal-pelajaran')
     .get(verifyToken, getJadwalPelajaran(models))
+  route.route('/modul')
+    .get(verifyToken, getModulPelajaran(models))
   route.route('/jadwal')
     .get(verifyToken, getJadwalMengajar(models))
     .post(verifyToken, postJadwalMengajar(models))
+  route.route('/kelas-siswa')
+    .get(getKelasSiswa(models))
+  route.route('/question-exam')
+    .get(verifyToken, getQuestionExam(models))
+    .post(verifyToken, postQuestionExam(models))
+  route.route('/jadwal-exam')
+    .get(getJadwalExam(models))  
+    .post(verifyToken, postJadwalExam(models))
+  route.route('/kode-soal-random')
+    .post(verifyToken, getRandomQuestion(models))
+  route.route('/list-pick')
+    .get(verifyToken, getListPickExam(models))
+    .post(verifyToken, postListPickExam(models))
   route.route('/nilai')
     .get(verifyToken, getPenilaian(models))
     .post(verifyToken, postPenilaian(models))
+  route.route('/koreksi-exam')
+    .post(verifyToken, postKoreksiExam(models))
+  route.route('/simpan-jawaban-exam')
+    .post(verifyToken, postJawabanExam(models))
+  route.route('/jadwal-exam-id/:idJadwalExam')
+    .get(verifyToken, getJadwalExamID(models))
   route.route('/template/:roleID')
     .get(downloadTemplate(models))
   route.route('/templateNilai/:kelas/:mapel')
@@ -111,8 +118,6 @@ module.exports = models => {
     .get(verifyToken, pdfCreateRaport(models))
   route.route('/list-siswasiswi')
     .get(listSiswaSiswi(models))
-  route.route('/dashboard')
-    .get(verifyToken, getDashboard(models))
 
   route.route('/ulinkfile')
     .post(unlinkFile(models))

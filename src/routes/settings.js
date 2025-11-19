@@ -5,44 +5,32 @@ const {
   getUID,
   getEncrypt,
   getDecrypt,
-  getMenu,
-  crudMenu,
-  getSequenceMenu,
-  crudSequenceMenu,
-  getRole,
-  crudRole,
-  getRoleMenu,
-  crudRoleMenu,
-  getKategoriNotifikasi,
-  getNotifikasi,
-  getCountNotifikasi,
-  crudNotifikasi,
+  optionsMenu,
+  optionsDataMaster,
+  optionsWilayah,
+  optionsWilayah2023,
+  optionsBerkas,
+  optionsUserBroadcast,
+  optionsKelas,
   getCMSSetting,
   crudCMSSetting,
   getBerkas,
   crudBerkas,
+  getRole,
+  crudRole,
+  getMenu,
+  crudMenu,
+  getSequenceMenu,
+  crudSequenceMenu,
+  getRoleMenu,
+  crudRoleMenu,
   getCardRFID,
   crudCardRFID,
-  optionsMenu,
-  optionsAgama,
-  optionsHobi,
-  optionsCitaCita,
-  optionsJenjangSekolah,
-  optionsPendidikan,
-  optionsPekerjaan,
-  optionsPenghasilan,
-  optionsJabatan,
-  optionsMengajar,
-  optionsKelas,
-  optionsStatusOrangtua,
-  optionsStatusTempatTinggal,
-  optionsJarakRumah,
-  optionsTransportasi,
-  optionsWilayah,
-  optionsWilayah2023,
-  optionsBerkas,
-  getUserBroadcast,
   getListExam,
+  getNotifikasi,
+  crudNotifikasi,
+  getKategoriNotifikasi,
+  getCountNotifikasi,
   getRFID,
   getWilayah,
   crudWilayah,
@@ -56,62 +44,48 @@ const { verifyToken } = require('../middleware/VerifyToken');
 
 module.exports = models => {
   const route = Router();
-  route.route('/getUID').get(getUID())
-  route.route('/encryptPass').get(verifyToken, getEncrypt())
-  route.route('/decryptPass').get(verifyToken, getDecrypt())
-  route.route('/optionsMenu').get(verifyToken, optionsMenu(models))
-  route.route('/optionsAgama').get(optionsAgama(models))
-  route.route('/optionsHobi').get(optionsHobi(models))
-  route.route('/optionsCitaCita').get(optionsCitaCita(models))
-  route.route('/optionsJenjangSekolah').get(optionsJenjangSekolah(models))
-  route.route('/optionsPendidikan').get(optionsPendidikan(models))
-  route.route('/optionsPekerjaan').get(optionsPekerjaan(models))
-  route.route('/optionsPenghasilan').get(optionsPenghasilan(models))
-  route.route('/optionsJabatan').get(optionsJabatan(models))
-  route.route('/optionsMengajar').get(optionsMengajar(models))
-  route.route('/optionsKelas').get(optionsKelas(models))
-  route.route('/optionsStatusOrangtua').get(optionsStatusOrangtua(models))
-  route.route('/optionsStatusTempatTinggal').get(optionsStatusTempatTinggal(models))
-  route.route('/optionsJarakRumah').get(optionsJarakRumah(models))
-  route.route('/optionsTransportasi').get(optionsTransportasi(models))
-  route.route('/optionsWilayah').get(optionsWilayah(models))
-  route.route('/optionsWilayah2023').get(optionsWilayah2023(models))
-  route.route('/optionsBerkas').get(optionsBerkas(models))
-  route.route('/listExam').get(verifyToken, getListExam(models))
-  
-  route.route('/updateFile').post(uploadFile, updateFile(models))
-  route.route('/updateBerkas').post(uploadBerkas, updateBerkas(models))
-  
-  route.route('/kategoriNotifikasi')
-    .get(verifyToken, getKategoriNotifikasi(models))
-  route.route('/dataUserBroadcast')
-    .get(verifyToken, getUserBroadcast(models))
-  route.route('/Notifikasi')
-    .get(verifyToken, getNotifikasi(models))
-    .post(verifyToken, crudNotifikasi(models))
-  route.route('/countNotifikasi')
-      .get(verifyToken, getCountNotifikasi(models))
-  route.route('/Menu')
-    .get(verifyToken, getMenu(models))
-    .post(crudMenu(models))
-  route.route('/SequenceMenu')
-    .get(verifyToken, getSequenceMenu(models))
-    .post(crudSequenceMenu(models))
-  route.route('/Role')
-    .get(verifyToken, getRole(models))
-    .post(crudRole(models))
-  route.route('/RoleMenu')
-    .get(verifyToken, getRoleMenu(models))
-    .post(crudRoleMenu(models))
+  route.route('/update-file').post(uploadFile, updateFile(models))
+  route.route('/update-berkas').post(uploadBerkas, updateBerkas(models))
+  route.route('/get-uid').get(getUID())
+  route.route('/encrypt-pass').get(verifyToken, getEncrypt())
+  route.route('/decrypt-pass').get(verifyToken, getDecrypt())
+  route.route('/options-menu').get(verifyToken, optionsMenu(models))
+  route.route('/options-data-master').get(verifyToken, optionsDataMaster(models))
+  route.route('/options-wilayah').get(optionsWilayah(models))
+  route.route('/options-wilayah2023').get(optionsWilayah2023(models))
+  route.route('/options-berkas').get(optionsBerkas(models))
+  route.route('/options-user-broadcast').get(verifyToken, optionsUserBroadcast(models))
+  route.route('/options-kelas').get(optionsKelas(models))
   route.route('/cmssetting')
     .get(getCMSSetting(models))
     .put(crudCMSSetting(models))
-  route.route('/Berkas')
+  route.route('/berkas')
     .get(verifyToken, getBerkas(models))
     .post(crudBerkas(models))
+  route.route('/role')
+    .get(verifyToken, getRole(models))
+    .post(crudRole(models))
+  route.route('/menu')
+    .get(verifyToken, getMenu(models))
+    .post(crudMenu(models))
+  route.route('/sequence-menu')
+    .get(verifyToken, getSequenceMenu(models))
+    .post(crudSequenceMenu(models))
+  route.route('/role-menu')
+    .get(verifyToken, getRoleMenu(models))
+    .post(crudRoleMenu(models))
   route.route('/data-rfid')
     .get(verifyToken, getCardRFID(models))
     .post(crudCardRFID(models))
+  route.route('/list-exam')
+    .get(verifyToken, getListExam(models))
+  route.route('/notifikasi')
+    .get(verifyToken, getNotifikasi(models))
+    .post(verifyToken, crudNotifikasi(models))
+  route.route('/kategoriNotifikasi')
+    .get(verifyToken, getKategoriNotifikasi(models))
+  route.route('/countNotifikasi')
+    .get(verifyToken, getCountNotifikasi(models))
   
   route.route('/rfid').get(getRFID(models))
   route.route('/wilayah')

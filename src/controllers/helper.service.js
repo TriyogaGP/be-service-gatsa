@@ -28,6 +28,25 @@ async function _allOption(params) {
 	return data
 }
 
+async function _allOptionCms(models, params, condition) {
+	const { where, order } = params
+	const data = await models.CMSSetting.findOne({ where , order, raw: true })
+	if(condition) {
+		// console.log(typeof condition.param);
+		let response = null
+		if(typeof condition.param == 'number'){
+			response = JSON.parse(data.setting).filter(x => x.value == condition.param)
+			return response[0]
+		}else if(typeof condition.param == 'string'){
+			let split = condition.param.split(', ')
+			response = JSON.parse(data.setting).filter(x => split.includes(x.value))
+			return response
+		}
+	}else{
+		return JSON.parse(data.setting)
+	}
+}
+
 async function _agamaOption(params) {
 	const { models, kode } = params
 	const agama = await models.Agama.findOne({ where: { kode } })
@@ -125,7 +144,7 @@ async function _wilayah2023Option(params) {
 	if(bagian === 'kabkota') { attributes.push('jenisKabKota', ['nama_kabkota', 'nama']) }
 	if(bagian === 'kecamatan') { attributes.push(['nama_kec', 'nama']) }
 	if(bagian === 'keldes') { attributes.push('jenisKelDes', ['nama_keldes', 'nama'], 'kodePos') }
-	const wilayah = await models.Wilayah2023.findOne({ where: { kode: { [Op.like]: `${kode}%`} }, attributes, order: [['kode', 'ASC']] })
+	const wilayah = await models.Wilayah2023.findOne({ where: { kode: { [Op.like]: `${kode}%`} }, attributes, order: [['kode', 'ASC']], raw: true })
 	return wilayah
 }
 
@@ -189,6 +208,7 @@ async function _KelasListOption(params) {
 
 module.exports = {
 	_allOption,
+	_allOptionCms,
 	_agamaOption,
   _citacitaOption,
 	_hobiOption,

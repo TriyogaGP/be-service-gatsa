@@ -3,7 +3,7 @@ const {
 	OK,
 	NOT_FOUND,
 	NO_CONTENT,
-	UNAUTHORIZED
+	UNPROCESSABLE
 } = require('@triyogagp/backend-common/utils/response.utils');
 const {
 	encrypt,
@@ -26,6 +26,7 @@ const {
 } = require('@triyogagp/backend-common/utils/helper.utils');
 const {
 	_allOption,
+	_allOptionCms,
 	_agamaOption,
   _citacitaOption,
 	_hobiOption,
@@ -44,7 +45,8 @@ const {
 	_wilayahOption,
 	_wilayah2023Option,
 } = require('../controllers/helper.service')
-const { Op } = require('sequelize')
+const { validateRequestBodyPayload } = require('../middleware/validator')
+const { Op, literal } = require('sequelize')
 const sequelize = require('sequelize')
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -267,37 +269,39 @@ function getAdmin (models) {
 			});
 
 			// return OK(res, dataAdmin)
-			const getResult = await Promise.all(dataAdmin.map(async val => {
-				const { UserDetail, Role } = val
-				return {
-					idUser: val.idUser,
-					consumerType: val.consumerType,
-					namaRole: Role.namaRole,
-					nama: val.nama,
-					username: val.username,
-					email: val.email,
-					password: val.password,
-					kataSandi: val.kataSandi,
-					tempat: UserDetail.tempat,
-					tanggalLahir: UserDetail.tanggalLahir,
-					jenisKelamin: UserDetail.jenisKelamin,
-					agama: UserDetail.agama ? await _agamaOption({ models, kode: UserDetail.agama }) : null,
-					telp: UserDetail.telp,
-					alamat: UserDetail.alamat,
-					provinsi: UserDetail.provinsi ? await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }) : null,
-					kabKota: UserDetail.kabKota ? await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }) : null,
-					kecamatan: UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
-					kelurahan: UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }) : null,
-					kodePos: UserDetail.kodePos,
-					fotoProfil: UserDetail.fotoProfil ? `${BASE_URL}image/${UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
-					isActive: val.isActive,
-					statusAktif: val.statusAktif,
-					flag: val.deleteBy !== null || val.deletedAt !== null,
-				}
-			}))
+			const arrangeResponse = item => {
+				return item.map(async val => {
+					const { UserDetail, Role } = val
+					return {
+						idUser: val.idUser,
+						consumerType: val.consumerType,
+						namaRole: Role.namaRole,
+						nama: val.nama,
+						username: val.username,
+						email: val.email,
+						password: val.password,
+						kataSandi: val.kataSandi,
+						tempat: UserDetail.tempat,
+						tanggalLahir: UserDetail.tanggalLahir,
+						jenisKelamin: UserDetail.jenisKelamin,
+						agama: await _allOptionCms(models, { where: { kode: 'agama' } }, { param: UserDetail.agama }),
+						telp: UserDetail.telp,
+						alamat: UserDetail.alamat,
+						provinsi: await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }),
+						kabKota: await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }),
+						kecamatan: await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }),
+						kelurahan: await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }),
+						kodePos: UserDetail.kodePos,
+						fotoProfil: UserDetail.fotoProfil ? `${BASE_URL}image/${UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+						isActive: val.isActive,
+						statusAktif: val.statusAktif,
+						flag: val.deleteBy !== null || val.deletedAt !== null,
+					}
+				})
+			}
 			
 			const responseData = buildMysqlResponseWithPagination(
-				getResult,
+				await Promise.all(arrangeResponse(dataAdmin)),
 				{ limit, page, total: count }
 			)
 			return OK(res, responseData);
@@ -342,13 +346,13 @@ function getAdminbyUid (models) {
 				tempat: UserDetail.tempat,
 				tanggalLahir: UserDetail.tanggalLahir,
 				jenisKelamin: UserDetail.jenisKelamin,
-				agama: UserDetail.agama ? await _agamaOption({ models, kode: UserDetail.agama }) : null,
+				agama: await _allOptionCms(models, { where: { kode: 'agama' } }, { param: UserDetail.agama }),
 				telp: UserDetail.telp,
 				alamat: UserDetail.alamat,
-				provinsi: UserDetail.provinsi ? await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }) : null,
-				kabKota: UserDetail.kabKota ? await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }) : null,
-				kecamatan: UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
-				kelurahan: UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }) : null,
+				provinsi: await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }),
+				kabKota: await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }),
+				kecamatan: await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }),
+				kelurahan: await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }),
 				kodePos: UserDetail.kodePos,
 				fotoProfil: UserDetail.fotoProfil ? `${BASE_URL}image/${UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
 				isActive: dataAdmin.isActive,
@@ -363,21 +367,11 @@ function getAdminbyUid (models) {
 function postAdmin (models) {
   return async (req, res, next) => {
 		let { user, userdetail } = req.body
-		let where = {}
     try {
+			if((user.jenis == 'ADD' || user.jenis == 'EDIT') && validateRequestBodyPayload(req)) return UNPROCESSABLE(res, validateRequestBodyPayload(req))
 			const { userID } = req.JWTDecoded
 			let salt, hashPassword, kirimdataUser, kirimdataUserDetail;
 			if(user.jenis == 'ADD'){
-				where = { 
-					statusAktif: true,
-					[Op.or]: [
-						{ email: user.email },
-						{ username: user.username }
-					] 
-				}
-				const count = await models.User.count({where});
-				if(count) return NOT_FOUND(res, 'data sudah di gunakan !')
-				// const ksuid = await createKSUID()
 				salt = await bcrypt.genSalt();
 				hashPassword = await bcrypt.hash(user.password, salt);
 				kirimdataUser = {
@@ -413,8 +407,6 @@ function postAdmin (models) {
 				})
 
 			}else if(user.jenis == 'EDIT'){
-				if(await models.User.findOne({where: {email: user.email, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Email sudah di gunakan !')
-				if(await models.User.findOne({where: {username: user.username, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Username sudah di gunakan !')
 				salt = await bcrypt.genSalt();
 				hashPassword = await bcrypt.hash(user.password, salt);
 				kirimdataUser = {
@@ -535,44 +527,46 @@ function getStruktural (models) {
 			});
 
 			// return OK(res, dataStruktural)
-			const getResult = await Promise.all(dataStruktural.map(async val => {
-				const { UserDetail, Role } = val
-				return {
-					idUser: val.idUser,
-					consumerType: val.consumerType,
-					nomorInduk: UserDetail.nomorInduk,
-					namaRole: Role.namaRole,
-					nama: val.nama,
-					username: val.username,
-					email: val.email,
-					password: val.password,
-					kataSandi: val.kataSandi,
-					tempat: UserDetail.tempat,
-					tanggalLahir: UserDetail.tanggalLahir,
-					jenisKelamin: UserDetail.jenisKelamin,
-					agama: UserDetail.agama ? await _agamaOption({ models, kode: UserDetail.agama }) : null,
-					telp: UserDetail.telp,
-					alamat: UserDetail.alamat,
-					provinsi: UserDetail.provinsi ? await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }) : null,
-					kabKota: UserDetail.kabKota ? await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }) : null,
-					kecamatan: UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
-					kelurahan: UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }) : null,
-					kodePos: UserDetail.kodePos,
-					pendidikanGuru: UserDetail.pendidikanGuru ? await _pendidikanOption({ models, kode: UserDetail.pendidikanGuru }) : null,
-					jabatanGuru: UserDetail.jabatanGuru ? await _jabatanOption({ models, kode: UserDetail.jabatanGuru }) : null,
-					mengajarBidang: UserDetail.mengajarBidang ? await _mengajarOption({ models, kode: UserDetail.mengajarBidang }) : null,
-					mengajarKelas: UserDetail.mengajarKelas,
-					waliKelas: UserDetail.waliKelas,
-					fotoProfil: UserDetail.fotoProfil ? `${BASE_URL}image/${UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
-					signature: UserDetail.signature ? `${BASE_URL}image/${UserDetail.signature}` : null,
-					isActive: val.isActive,
-					statusAktif: val.statusAktif,
-					flag: val.deleteBy !== null || val.deletedAt !== null,
-				}
-			}))
+			const arrangeResponse = item => {
+				return item.map(async val => {
+					const { UserDetail, Role } = val
+					return {
+						idUser: val.idUser,
+						consumerType: val.consumerType,
+						nomorInduk: UserDetail.nomorInduk,
+						namaRole: Role.namaRole,
+						nama: val.nama,
+						username: val.username,
+						email: val.email,
+						password: val.password,
+						kataSandi: val.kataSandi,
+						tempat: UserDetail.tempat,
+						tanggalLahir: UserDetail.tanggalLahir,
+						jenisKelamin: UserDetail.jenisKelamin,
+						agama: await _allOptionCms(models, { where: { kode: 'agama' } }, { param: UserDetail.agama }),
+						telp: UserDetail.telp,
+						alamat: UserDetail.alamat,
+						provinsi: await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }),
+						kabKota: await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }),
+						kecamatan: await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }),
+						kelurahan: await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }),
+						kodePos: UserDetail.kodePos,
+						pendidikanGuru: await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail.pendidikanGuru }),
+						jabatanGuru: UserDetail.jabatanGuru ? await _allOptionCms(models, { where: { kode: 'jabatan' } }, { param: UserDetail.jabatanGuru }) : null,
+						mengajarBidang: UserDetail.mengajarBidang ? await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: UserDetail.mengajarBidang }) : null,
+						mengajarKelas: UserDetail.mengajarKelas,
+						waliKelas: UserDetail.waliKelas,
+						fotoProfil: UserDetail.fotoProfil ? `${BASE_URL}image/${UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+						signature: UserDetail.signature ? `${BASE_URL}image/${UserDetail.signature}` : null,
+						isActive: val.isActive,
+						statusAktif: val.statusAktif,
+						flag: val.deleteBy !== null || val.deletedAt !== null,
+					}
+				})
+			}
 
 			const responseData = buildMysqlResponseWithPagination(
-				getResult,
+				await Promise.all(arrangeResponse(dataStruktural)),
 				{ limit, page, total: count }
 			)
 
@@ -607,8 +601,8 @@ function getStrukturalbyUid (models) {
 
 			// return OK(res, dataStruktural)
 			const { UserDetail, Role } = dataStruktural
-			let jabatan = dataStruktural.UserDetail.jabatanGuru === null ? null : await _jabatanOption({ models, kode: UserDetail.jabatanGuru })
-			let mengajar = UserDetail.mengajarBidang === null ? null : await _mengajarOption({ models, kode: UserDetail.mengajarBidang })
+			let jabatan = dataStruktural.UserDetail.jabatanGuru === null ? null : await _allOptionCms(models, { where: { kode: 'jabatan' } }, { param: UserDetail.jabatanGuru })
+			let mengajar = UserDetail.mengajarBidang === null ? null : await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: UserDetail.mengajarBidang })
 			return OK(res, {
 				idUser: dataStruktural.idUser,
 				consumerType: dataStruktural.consumerType,
@@ -622,17 +616,17 @@ function getStrukturalbyUid (models) {
 				tempat: UserDetail.tempat,
 				tanggalLahir: UserDetail.tanggalLahir,
 				jenisKelamin: UserDetail.jenisKelamin,
-				agama: UserDetail.agama ? await _agamaOption({ models, kode: UserDetail.agama }) : null,
+				agama: await _allOptionCms(models, { where: { kode: 'agama' } }, { param: UserDetail.agama }),
 				telp: UserDetail.telp,
 				alamat: UserDetail.alamat,
-				provinsi: UserDetail.provinsi ? await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }) : null,
-				kabKota: UserDetail.kabKota ? await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }) : null,
-				kecamatan: UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
-				kelurahan: UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }) : null,
+				provinsi: await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }),
+				kabKota: await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }),
+				kecamatan: await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }),
+				kelurahan: await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }),
 				kodePos: UserDetail.kodePos,
-				pendidikanGuru: UserDetail.pendidikanGuru ? await _pendidikanOption({ models, kode: UserDetail.pendidikanGuru }) : null,
-				jabatanGuru: UserDetail.jabatanGuru !== null ? jabatan.map(str => { return str.kode; }) : null,
-				mengajarBidang: UserDetail.mengajarBidang !== null ? mengajar.map(str => { return str.kode; }) : null,
+				pendidikanGuru: await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail.pendidikanGuru }),
+				jabatanGuru: UserDetail.jabatanGuru !== null ? jabatan.map(str => { return str.value; }) : null,
+				mengajarBidang: UserDetail.mengajarBidang !== null ? mengajar.map(str => { return str.value; }) : null,
 				mengajarKelas: UserDetail.mengajarKelas,
 				waliKelas: UserDetail.waliKelas,
 				fotoProfil: UserDetail.fotoProfil ? `${BASE_URL}image/${UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
@@ -650,29 +644,11 @@ function getStrukturalbyUid (models) {
 function postStruktural (models) {
   return async (req, res, next) => {
 		let { user, userdetail } = req.body
-		let where = {}
     try {
+			if((user.jenis == 'ADD' || user.jenis == 'EDIT') && validateRequestBodyPayload(req)) return UNPROCESSABLE(res, validateRequestBodyPayload(req))
 			const { userID } = req.JWTDecoded
 			let salt, hashPassword, kirimdataUser, kirimdataUserDetail;
 			if(user.jenis == 'ADD'){
-				where = { 
-					statusAktif: true,
-					[Op.or]: [
-						{ email: user.email },
-						{ username: user.username },
-						{ '$UserDetail.nomor_induk$': userdetail.nomorInduk },
-					] 
-				}
-				const count = await models.User.count({
-					where,
-					include: [
-						{ 
-							model: models.UserDetail,
-						}
-					],
-				});
-				if(count) return NOT_FOUND(res, 'data sudah di gunakan !')
-				// const ksuid = await createKSUID()
 				salt = await bcrypt.genSalt();
 				hashPassword = await bcrypt.hash(user.password, salt);
 				kirimdataUser = {
@@ -689,8 +665,8 @@ function postStruktural (models) {
 				kirimdataUserDetail = {
 					idUserDetail: makeRandom(10),
 					idUser: user.idUser,
-					// nomorInduk: userdetail.nomorInduk,
-					nomorInduk: `1992023${makeRandomAngka(13)}`,
+					nomorInduk: userdetail.nomorInduk,
+					// nomorInduk: `1992023${makeRandomAngka(13)}`,
 					tempat: userdetail.tempat,
 					tanggalLahir: userdetail.tanggalLahir,
 					jenisKelamin: userdetail.jenisKelamin,
@@ -709,58 +685,51 @@ function postStruktural (models) {
 					waliKelas: userdetail.waliKelas,
 				}
 
-				let kumpul = []
 				let kumpulan = []
-				if(userdetail.mengajarBidang !== null && userdetail.mengajarKelas !== null){
-					let mapel = userdetail.mengajarBidang.split(', ')
+				let kumpul = []
+				if(userdetail.mengajarBidang && userdetail.mengajarKelas){
 					let kelas = userdetail.mengajarKelas.split(', ')
-					
-					const mengajar = await models.Mengajar.findAll({ where: { kode: mapel }}); 
-					const dataMengajar = await mengajar.map(str => str.kode)
-	
-					await Promise.all(dataMengajar.map(async (val) => {
-						await Promise.all(kelas.map(val2 => {
+					const dataMengajar = await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: userdetail.mengajarBidang })
+					dataMengajar.forEach(mapel => {
+						kelas.forEach(kelasItem => {
 							kumpul.push({
 								idUser: user.idUser,
-								mapel: val,
-								kelas: val2
+								mapel: mapel.value,
+								kelas: kelasItem
 							})
-						}))
-					}))
+						})
+					})
 					
 					await Promise.all(kumpul.map(async val => {
 						const dataJadwal = await models.JadwalMengajar.findOne({ 
-							where: { idUser: user.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
-							attributes: ['idUser', 'mapel', 'kelas', 'jumlahTugas', 'status']
-						});
+							where: { idUser: val.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
+							attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'jumlahTugas', 'status'],
+							raw: true
+						})
+						
 						if(!dataJadwal){
-							return kumpulan.push({
+							kumpulan.push({
 								idJadwalMengajar: makeRandom(10),
-								idUser: user.idUser,
+								idUser: val.idUser,
 								mapel: val.mapel,
 								kelas: val.kelas,
 								jumlahTugas: 10,
 								status: true
 							})
+						}else{
+							kumpulan.push(dataJadwal)
 						}
-						kumpulan.push(dataJadwal)
 					}))
 				}
 
 				await sequelizeInstance.transaction(async trx => {
 					await models.User.create(kirimdataUser, { transaction: trx })
 					await models.UserDetail.create(kirimdataUserDetail, { transaction: trx })
-					if(userdetail.mengajarBidang !== null && userdetail.mengajarKelas !== null){
+					if(userdetail.mengajarBidang && userdetail.mengajarKelas){
 						await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']), { transaction: trx })
 					}
 				})
-
 			}else if(user.jenis == 'EDIT'){
-				if(await models.User.findOne({where: {email: user.email, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Email sudah di gunakan !')
-				if(await models.User.findOne({where: {username: user.username, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Username sudah di gunakan !')
-				if(userdetail.nomorInduk !== '-'){
-					if(await models.UserDetail.findOne({where: {nomorInduk: userdetail.nomorInduk, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Nomor Induk sudah di gunakan !')
-				}
 				salt = await bcrypt.genSalt();
 				hashPassword = await bcrypt.hash(user.password, salt);
 				kirimdataUser = {
@@ -792,51 +761,40 @@ function postStruktural (models) {
 					mengajarKelas: userdetail.mengajarKelas,
 					waliKelas: userdetail.waliKelas,
 				}
-				console.log(userdetail);
+
 				let kumpul = []
 				let kumpulan = []
-				if(userdetail.mengajarBidang !== null && userdetail.mengajarKelas !== null){
-					let mapel = userdetail.mengajarBidang.split(', ')
+				if(userdetail.mengajarBidang && userdetail.mengajarKelas){
 					let kelas = userdetail.mengajarKelas.split(', ')
-					
-					const mengajar = await models.Mengajar.findAll({ where: { kode: mapel }}); 
-					const dataMengajar = await mengajar.map(str => str.kode)
-
-					await Promise.all(dataMengajar.map(async (val) => {
-						await Promise.all(kelas.map(val2 => {
+					const dataMengajar = await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: userdetail.mengajarBidang })					
+					dataMengajar.forEach(mapel => {
+						kelas.forEach(kelasItem => {
 							kumpul.push({
 								idUser: user.idUser,
-								mapel: val,
-								kelas: val2
+								mapel: mapel.value,
+								kelas: kelasItem
 							})
-						}))
-					}))
+						})
+					})
 					
 					await Promise.all(kumpul.map(async val => {
 						const dataJadwal = await models.JadwalMengajar.findOne({ 
-							where: { idUser: user.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
-							attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'jumlahTugas', 'kkm', 'status']
-						});
+							where: { idUser: val.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
+							attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'jumlahTugas', 'status'],
+							raw: true
+						})
+						
 						if(!dataJadwal){
-							return kumpulan.push({
+							kumpulan.push({
 								idJadwalMengajar: makeRandom(10),
-								idUser: user.idUser,
+								idUser: val.idUser,
 								mapel: val.mapel,
 								kelas: val.kelas,
 								jumlahTugas: 10,
-								kkm: 0,
 								status: true
 							})
 						}else{
-							kumpulan.push({
-								idJadwalMengajar: dataJadwal.idJadwalMengajar,
-								idUser: dataJadwal.idUser,
-								mapel: dataJadwal.mapel,
-								kelas: dataJadwal.kelas,
-								jumlahTugas: dataJadwal.jumlahTugas,
-								kkm: dataJadwal.kkm,
-								status: dataJadwal.status
-							})
+							kumpulan.push(dataJadwal)
 						}
 					}))
 				}
@@ -845,7 +803,7 @@ function postStruktural (models) {
 					await models.User.update(kirimdataUser, { where: { idUser: user.idUser } }, { transaction: trx })
 					await models.UserDetail.update(kirimdataUserDetail, { where: { idUser: user.idUser } }, { transaction: trx })
 					await models.JadwalMengajar.destroy({ where: { idUser: user.idUser } }, { transaction: trx });
-					if(userdetail.mengajarBidang !== null && userdetail.mengajarKelas !== null){
+					if(userdetail.mengajarBidang && userdetail.mengajarKelas){
 						await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']), { transaction: trx })
 					}
 				})
@@ -995,20 +953,20 @@ function getSiswaSiswi (models) {
 			});
 
 			// return OK(res, dataSiswaSiswi)
-			const cms_setting = await dataCMSSettings({ models })
-
-			const getResult = await Promise.all(dataSiswaSiswi.map(async val => {
-				const { UserDetail, Role } = val
-				const getNilai = await models.Nilai.findAll({ where: { idUser: val.idUser } })
+			const datapenilaian = async (idUser, kelas) => {
+				const cms_setting = await dataCMSSettings({ models })
+				const getNilai = await models.Nilai.findAll({ where: { idUser } })
 				const dataPenilaian = await Promise.all(getNilai.map(async k => {
 					const { mapel, dataNilai, dataKehadiran, dataKoreksiNilai } = k.dataValues
-					const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: UserDetail.kelas, mapel, status: true } });
+					const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas, mapel, status: true } });
+					// const mengajar = await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: mapel })
 					let nilai = JSON.parse(dataNilai)
 					let kehadiran = JSON.parse(dataKehadiran)
 					let koreksi = JSON.parse(dataKoreksiNilai)
-					let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+					let semester = cms_setting.semester.label.toLowerCase()
 
 					return {
+						// mapel: mengajar[0]?.label || [],
 						mapel,
 						semester,
 						dataNK: {
@@ -1017,110 +975,116 @@ function getSiswaSiswi (models) {
 							koreksi: koreksi.filter(str => str.semester === semester)[0].koreksi,
 						},
 						dataJadwal: {
-							jumlahTugas: dataJadwal ? dataJadwal.jumlahTugas : '0',
-							kkm: dataJadwal ? dataJadwal.kkm : cms_setting.kkm,
+							jumlahTugas: dataJadwal?.jumlahTugas || '0',
+							kkm: dataJadwal?.kkm || cms_setting?.kkm,
 						},
 					}
 				}))
+				return dataPenilaian
+			} 
 
-				return {
-					dataPenilaian,
-					idUser: val.idUser,
-					consumerType: val.consumerType,
-					nikSiswa: UserDetail.nikSiswa,
-					nomorInduk: UserDetail.nomorInduk,
-					namaRole: Role.namaRole,
-					nama: val.nama,
-					username: val.username,
-					email: val.email,
-					password: val.password,
-					kataSandi: val.kataSandi,
-					tempat: UserDetail.tempat,
-					tanggalLahir: UserDetail.tanggalLahir,
-					jenisKelamin: UserDetail.jenisKelamin,
-					agama: UserDetail.agama ? await _agamaOption({ models, kode: UserDetail.agama }) : null,
-					anakKe: UserDetail.anakKe,
-					jumlahSaudara: UserDetail.jumlahSaudara,
-					hobi: UserDetail.hobi ? await _hobiOption({ models, kode: UserDetail.hobi }) : null,
-					citaCita: UserDetail.citaCita ? await _citacitaOption({ models, kode: UserDetail.citaCita }) : null,
-					dataSekolahSebelumnya: {
-						jenjang: UserDetail.jenjang ? await _jenjangsekolahOption({ models, kode: UserDetail.jenjang }) : null,
-						statusSekolah: UserDetail.statusSekolah ? await _statussekolahOption({ models, kode: UserDetail.statusSekolah }) : null,
-						namaSekolah: UserDetail.namaSekolah,
-						npsn: UserDetail.npsn,
-						alamatSekolah: UserDetail.alamatSekolah,
-						kabkotSekolah: UserDetail.kabkotSekolah ? await _wilayah2023Option({ models, kode: UserDetail.kabkotSekolah, bagian: 'kabkota' }) : null,
-						noPesertaUN: UserDetail.noPesertaUN,
-						noSKHUN: UserDetail.noSKHUN,
-						noIjazah: UserDetail.noIjazah,
-						nilaiUN: UserDetail.nilaiUN,
-					},
-					noKK: UserDetail.noKK,
-					namaKK: UserDetail.namaKK,
-					dataOrangtua: {
-						dataAyah: {
-							namaAyah: UserDetail.namaAyah,
-							tahunAyah: val.UserDetail.tahunAyah,
-							statusAyah: val.UserDetail.statusAyah ? await _statusortuOption({ models, kode: val.UserDetail.statusAyah }) : null,
-							nikAyah: val.UserDetail.nikAyah,
-							pendidikanAyah: val.UserDetail.pendidikanAyah ? await _pendidikanOption({ models, kode: val.UserDetail.pendidikanAyah }) : null,
-							pekerjaanAyah: val.UserDetail.pekerjaanAyah ? await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanAyah }) : null,
-							telpAyah: val.UserDetail.telpAyah,
+			const arrangeResponse = item => {
+				return item.map(async val => {
+					const { UserDetail, Role } = val
+					return {
+						dataPenilaian: await datapenilaian(val.idUser, UserDetail.kelas),
+						idUser: val.idUser,
+						consumerType: val.consumerType,
+						nikSiswa: UserDetail.nikSiswa,
+						nomorInduk: UserDetail.nomorInduk,
+						namaRole: Role.namaRole,
+						nama: val.nama,
+						username: val.username,
+						email: val.email,
+						password: val.password,
+						kataSandi: val.kataSandi,
+						tempat: UserDetail.tempat,
+						tanggalLahir: UserDetail.tanggalLahir,
+						jenisKelamin: UserDetail.jenisKelamin,
+						agama: await _allOptionCms(models, { where: { kode: 'agama' } }, { param: UserDetail.agama }),
+						anakKe: UserDetail.anakKe,
+						jumlahSaudara: UserDetail.jumlahSaudara,
+						hobi: UserDetail.hobi ? await _allOptionCms(models, { where: { kode: 'hobi' } }, { param: UserDetail.hobi }) : null,
+						citaCita: UserDetail.citaCita ? await _allOptionCms(models, { where: { kode: 'citacita' } }, { param: UserDetail.citaCita }) : null,
+						dataSekolahSebelumnya: {
+							jenjang: UserDetail.jenjang ? await _allOptionCms(models, { where: { kode: 'jenjangsekolah' } }, { param: UserDetail.jenjang }) : null,
+							statusSekolah: UserDetail.statusSekolah ? await _allOptionCms(models, { where: { kode: 'status_sekolah' } }, { param: UserDetail.statusSekolah }) : null,
+							namaSekolah: UserDetail.namaSekolah,
+							npsn: UserDetail.npsn,
+							alamatSekolah: UserDetail.alamatSekolah,
+							kabkotSekolah: await _wilayah2023Option({ models, kode: UserDetail.kabkotSekolah, bagian: 'kabkota' }),
+							noPesertaUN: UserDetail.noPesertaUN,
+							noSKHUN: UserDetail.noSKHUN,
+							noIjazah: UserDetail.noIjazah,
+							nilaiUN: UserDetail.nilaiUN,
 						},
-						dataIbu: {
-							namaIbu: val.UserDetail.namaIbu,
-							tahunIbu: val.UserDetail.tahunIbu,
-							statusIbu: val.UserDetail.statusIbu ? await _statusortuOption({ models, kode: val.UserDetail.statusIbu }) : null,
-							nikIbu: val.UserDetail.nikIbu,
-							pendidikanIbu: val.UserDetail.pendidikanIbu ? await _pendidikanOption({ models, kode: val.UserDetail.pendidikanIbu }) : null,
-							pekerjaanIbu: val.UserDetail.pekerjaanIbu ? await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanIbu }) : null,
-							telpIbu: val.UserDetail.telpIbu,
+						noKK: UserDetail.noKK,
+						namaKK: UserDetail.namaKK,
+						dataOrangtua: {
+							dataAyah: {
+								namaAyah: UserDetail.namaAyah,
+								tahunAyah: UserDetail.tahunAyah,
+								statusAyah: await _allOptionCms(models, { where: { kode: 'statusorangtua' } }, { param: UserDetail.statusAyah }),
+								nikAyah: UserDetail.nikAyah,
+								pendidikanAyah: await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail.pendidikanAyah }),
+								pekerjaanAyah: await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail.pekerjaanAyah }),
+								telpAyah: UserDetail.telpAyah,
+							},
+							dataIbu: {
+								namaIbu: UserDetail.namaIbu,
+								tahunIbu: UserDetail.tahunIbu,
+								statusIbu: await _allOptionCms(models, { where: { kode: 'statusorangtua' } }, { param: UserDetail.statusIbu }),
+								nikIbu: UserDetail.nikIbu,
+								pendidikanIbu: await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail.pendidikanIbu }),
+								pekerjaanIbu: await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail.pekerjaanIbu }),
+								telpIbu: UserDetail.telpIbu,
+							},
+							dataWali: {
+								namaWali: UserDetail.namaWali,
+								tahunWali: UserDetail.tahunWali,
+								nikWali: UserDetail.nikWali,
+								pendidikanWali: UserDetail.pendidikanWali ? await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail.pendidikanWali }) : null,
+								pekerjaanWali: UserDetail.pekerjaanWali ? await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail.pekerjaanWali }) : null,
+								telpWali: UserDetail.telpWali,
+							}
 						},
-						dataWali: {
-							namaWali: val.UserDetail.namaWali,
-							tahunWali: val.UserDetail.tahunWali,
-							nikWali: val.UserDetail.nikWali,
-							pendidikanWali: val.UserDetail.pendidikanWali ? await _pendidikanOption({ models, kode: val.UserDetail.pendidikanWali }) : null,
-							pekerjaanWali: val.UserDetail.pekerjaanWali ? await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanWali }) : null,
-							telpWali: val.UserDetail.telpWali,
-						}
-					},
-					penghasilan: val.UserDetail.penghasilan ? await _penghasilanOption({ models, kode: val.UserDetail.penghasilan }) : null,
-					dataAlamatOrangtua: {
-						telp: val.UserDetail.telp,
-						alamat: val.UserDetail.alamat,
-						provinsi: val.UserDetail.provinsi ? await _wilayah2023Option({ models, kode: val.UserDetail.provinsi, bagian: 'provinsi' }) : null,
-						kabKota: val.UserDetail.kabKota ? await _wilayah2023Option({ models, kode: val.UserDetail.kabKota, bagian: 'kabkota' }) : null,
-						kecamatan: val.UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: val.UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
-						kelurahan: val.UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: val.UserDetail.kelurahan, bagian: 'keldes' }) : null,
-						kodePos: val.UserDetail.kodePos,
-					},
-					kelas: val.UserDetail.kelas,
-					dataLainnya: {
-						statusTempatTinggal: val.UserDetail.statusTempatTinggal ? await _statustempattinggalOption({ models, kode: val.UserDetail.statusTempatTinggal }) : null,
-						jarakRumah: val.UserDetail.jarakRumah ? await _jarakrumahOption({ models, kode: val.UserDetail.jarakRumah }) : null,
-						transportasi: val.UserDetail.transportasi ? await _transportasiOption({ models, kode: val.UserDetail.transportasi }) : null,
-					},
-					fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
-					berkas: {
-						fcIjazah: val.UserDetail.fcIjazah ? `${BASE_URL}pdf/${val.UserDetail.fcIjazah}` : null,
-						fcSKHUN: val.UserDetail.fcSKHUN ? `${BASE_URL}pdf/${val.UserDetail.fcSKHUN}` : null,
-						fcKK: val.UserDetail.fcKK ? `${BASE_URL}pdf/${val.UserDetail.fcKK}` : null,
-						fcKTPOrtu: val.UserDetail.fcKTPOrtu ? `${BASE_URL}pdf/${val.UserDetail.fcKTPOrtu}` : null,
-						fcAktaLahir: val.UserDetail.fcAktaLahir ? `${BASE_URL}pdf/${val.UserDetail.fcAktaLahir}` : null,
-						fcSKL: val.UserDetail.fcSKL ? `${BASE_URL}pdf/${val.UserDetail.fcSKL}` : null,
-					},
-					mutasiAkun: val.mutasiAkun,
-					validasiAkun: val.validasiAkun,
-					condition: new Date().getDate() === new Date(val.createdAt).getDate() ? true : false,
-					isActive: val.isActive,
-					statusAktif: val.statusAktif,
-					flag: val.deleteBy !== null || val.deletedAt !== null,
-				}
-			}))
+						penghasilan: UserDetail.penghasilan ? await _allOptionCms(models, { where: { kode: 'penghasilan' } }, { param: UserDetail.penghasilan }) : null,
+						dataAlamatOrangtua: {
+							telp: UserDetail.telp,
+							alamat: UserDetail.alamat,
+							provinsi: await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }),
+							kabKota: await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }),
+							kecamatan: await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }),
+							kelurahan: await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }),
+							kodePos: UserDetail.kodePos,
+						},
+						kelas: UserDetail.kelas,
+						dataLainnya: {
+							statusTempatTinggal: UserDetail.statusTempatTinggal ? await _allOptionCms(models, { where: { kode: 'statustempattinggal' } }, { param: UserDetail.statusTempatTinggal }) : null,
+							jarakRumah: UserDetail.jarakRumah ? await _allOptionCms(models, { where: { kode: 'jarakrumah' } }, { param: UserDetail.jarakRumah }) : null,
+							transportasi: UserDetail.transportasi ? await _allOptionCms(models, { where: { kode: 'transportasi' } }, { param: UserDetail.transportasi }) : null,
+						},
+						fotoProfil: UserDetail.fotoProfil ? `${BASE_URL}image/${UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+						berkas: {
+							fcIjazah: UserDetail.fcIjazah ? `${BASE_URL}pdf/${UserDetail.fcIjazah}` : null,
+							fcSKHUN: UserDetail.fcSKHUN ? `${BASE_URL}pdf/${UserDetail.fcSKHUN}` : null,
+							fcKK: UserDetail.fcKK ? `${BASE_URL}pdf/${UserDetail.fcKK}` : null,
+							fcKTPOrtu: UserDetail.fcKTPOrtu ? `${BASE_URL}pdf/${UserDetail.fcKTPOrtu}` : null,
+							fcAktaLahir: UserDetail.fcAktaLahir ? `${BASE_URL}pdf/${UserDetail.fcAktaLahir}` : null,
+							fcSKL: UserDetail.fcSKL ? `${BASE_URL}pdf/${UserDetail.fcSKL}` : null,
+						},
+						mutasiAkun: val.mutasiAkun,
+						validasiAkun: val.validasiAkun,
+						condition: new Date().getDate() === new Date(val.createdAt).getDate() ? true : false,
+						isActive: val.isActive,
+						statusAktif: val.statusAktif,
+						flag: val.deleteBy !== null || val.deletedAt !== null,
+					}
+				})
+			}
 
 			const responseData = buildMysqlResponseWithPagination(
-				getResult,
+				await Promise.all(arrangeResponse(dataSiswaSiswi)),
 				{ limit, page, total: count }
 			)
 
@@ -1187,18 +1151,18 @@ function getSiswaSiswibyUid (models) {
 				tempat: UserDetail.tempat,
 				tanggalLahir: UserDetail.tanggalLahir,
 				jenisKelamin: UserDetail.jenisKelamin,
-				agama: UserDetail.agama ? await _agamaOption({ models, kode: UserDetail.agama }) : null,
+				agama: await _allOptionCms(models, { where: { kode: 'agama' } }, { param: UserDetail.agama }),
 				anakKe: UserDetail.anakKe,
 				jumlahSaudara: UserDetail.jumlahSaudara,
-				hobi: UserDetail.hobi ? await _hobiOption({ models, kode: UserDetail.hobi }) : null,
-				citaCita: UserDetail.citaCita ? await _citacitaOption({ models, kode: UserDetail.citaCita }) : null,
+				hobi: UserDetail.hobi ? await _allOptionCms(models, { where: { kode: 'hobi' } }, { param: UserDetail.hobi }) : null,
+				citaCita: UserDetail.citaCita ? await _allOptionCms(models, { where: { kode: 'citacita' } }, { param: UserDetail.citaCita }) : null,
 				dataSekolahSebelumnya: {
-					jenjang: UserDetail.jenjang ? await _jenjangsekolahOption({ models, kode: UserDetail.jenjang }) : null,
-					statusSekolah: UserDetail.statusSekolah ? await _statussekolahOption({ models, kode: UserDetail.statusSekolah }) : null,
+					jenjang: await _allOptionCms(models, { where: { kode: 'jenjangsekolah' } }, { param: UserDetail.jenjang }),
+					statusSekolah: await _allOptionCms(models, { where: { kode: 'status_sekolah' } }, { param: UserDetail.statusSekolah }),
 					namaSekolah: UserDetail.namaSekolah,
 					npsn: UserDetail.npsn,
 					alamatSekolah: UserDetail.alamatSekolah,
-					kabkotSekolah: UserDetail.kabkotSekolah ? await _wilayah2023Option({ models, kode: UserDetail.kabkotSekolah, bagian: 'kabkota' }) : null,
+					kabkotSekolah: await _wilayah2023Option({ models, kode: UserDetail.kabkotSekolah, bagian: 'kabkota' }),
 					noPesertaUN: UserDetail.noPesertaUN,
 					noSKHUN: UserDetail.noSKHUN,
 					noIjazah: UserDetail.noIjazah,
@@ -1210,45 +1174,45 @@ function getSiswaSiswibyUid (models) {
 					dataAyah: {
 						namaAyah: UserDetail.namaAyah,
 						tahunAyah: UserDetail.tahunAyah,
-						statusAyah: UserDetail.statusAyah ? await _statusortuOption({ models, kode: UserDetail.statusAyah }) : null,
+						statusAyah: await _allOptionCms(models, { where: { kode: 'statusorangtua' } }, { param: UserDetail.statusAyah }),
 						nikAyah: UserDetail.nikAyah,
-						pendidikanAyah: UserDetail.pendidikanAyah ? await _pendidikanOption({ models, kode: UserDetail.pendidikanAyah }) : null,
-						pekerjaanAyah: UserDetail.pekerjaanAyah ? await _pekerjaanOption({ models, kode: UserDetail.pekerjaanAyah }) : null,
+						pendidikanAyah: await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail.pendidikanAyah }),
+						pekerjaanAyah: await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail.pekerjaanAyah }),
 						telpAyah: UserDetail.telpAyah,
 					},
 					dataIbu: {
 						namaIbu: UserDetail.namaIbu,
 						tahunIbu: UserDetail.tahunIbu,
-						statusIbu: UserDetail.statusIbu ? await _statusortuOption({ models, kode: UserDetail.statusIbu }) : null,
+						statusIbu: await _allOptionCms(models, { where: { kode: 'statusorangtua' } }, { param: UserDetail.statusIbu }),
 						nikIbu: UserDetail.nikIbu,
-						pendidikanIbu: UserDetail.pendidikanIbu ? await _pendidikanOption({ models, kode: UserDetail.pendidikanIbu }) : null,
-						pekerjaanIbu: UserDetail.pekerjaanIbu ? await _pekerjaanOption({ models, kode: UserDetail.pekerjaanIbu }) : null,
+						pendidikanIbu: await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail.pendidikanIbu }),
+						pekerjaanIbu: await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail.pekerjaanIbu }),
 						telpIbu: UserDetail.telpIbu,
 					},
 					dataWali: {
 						namaWali: UserDetail.namaWali,
 						tahunWali: UserDetail.tahunWali,
 						nikWali: UserDetail.nikWali,
-						pendidikanWali: UserDetail.pendidikanWali ? await _pendidikanOption({ models, kode: UserDetail.pendidikanWali }) : null,
-						pekerjaanWali: UserDetail.pekerjaanWali ? await _pekerjaanOption({ models, kode: UserDetail.pekerjaanWali }) : null,
+						pendidikanWali: UserDetail.pendidikanWali ? await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail.pendidikanWali }) : null,
+						pekerjaanWali: UserDetail.pekerjaanWali ? await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail.pekerjaanWali }) : null,
 						telpWali: UserDetail.telpWali,
 					}
 				},
-				penghasilan: UserDetail.penghasilan ? await _penghasilanOption({ models, kode: UserDetail.penghasilan }) : null,
+				penghasilan: UserDetail.penghasilan ? await _allOptionCms(models, { where: { kode: 'penghasilan' } }, { param: UserDetail.penghasilan }) : null,
 				dataAlamatOrangtua: {
 					telp: UserDetail.telp,
 					alamat: UserDetail.alamat,
-					provinsi: UserDetail.provinsi ? await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }) : null,
-					kabKota: UserDetail.kabKota ? await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }) : null,
-					kecamatan: UserDetail.kecamatan ? await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }) : null,
-					kelurahan: UserDetail.kelurahan ? await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }) : null,
+					provinsi: await _wilayah2023Option({ models, kode: UserDetail.provinsi, bagian: 'provinsi' }),
+					kabKota: await _wilayah2023Option({ models, kode: UserDetail.kabKota, bagian: 'kabkota' }),
+					kecamatan: await _wilayah2023Option({ models, kode: UserDetail.kecamatan, bagian: 'kecamatan' }),
+					kelurahan: await _wilayah2023Option({ models, kode: UserDetail.kelurahan, bagian: 'keldes' }),
 					kodePos: UserDetail.kodePos,
 				},
 				kelas: UserDetail.kelas,
 				dataLainnya: {
-					statusTempatTinggal: UserDetail.statusTempatTinggal ? await _statustempattinggalOption({ models, kode: UserDetail.statusTempatTinggal }) : null,
-					jarakRumah: UserDetail.jarakRumah ? await _jarakrumahOption({ models, kode: UserDetail.jarakRumah }) : null,
-					transportasi: UserDetail.transportasi ? await _transportasiOption({ models, kode: UserDetail.transportasi }) : null,
+					statusTempatTinggal: UserDetail.statusTempatTinggal ? await _allOptionCms(models, { where: { kode: 'statustempattinggal' } }, { param: UserDetail.statusTempatTinggal }) : null,
+					jarakRumah: UserDetail.jarakRumah ? await _allOptionCms(models, { where: { kode: 'jarakrumah' } }, { param: UserDetail.jarakRumah }) : null,
+					transportasi: UserDetail.transportasi ? await _allOptionCms(models, { where: { kode: 'transportasi' } }, { param: UserDetail.transportasi }) : null,
 				},
 				fotoProfil: UserDetail.fotoProfil ? `${BASE_URL}image/${UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
 				berkas: {
@@ -1261,8 +1225,8 @@ function getSiswaSiswibyUid (models) {
 				},
 				dataPenilaian: {
 					namaGuru: dataStruktural ? dataStruktural.nama : '-',
-					jumlahTugas: dataJadwal ? dataJadwal.jumlahTugas : '0',
-					kkm: dataJadwal ? dataJadwal.kkm : cms_setting.kkm,
+					jumlahTugas: dataJadwal?.jumlahTugas || '0',
+					kkm: dataJadwal?.kkm || cms_setting?.kkm,
 				},
 				isActive: dataSiswaSiswi.isActive,
 				statusAktif: dataSiswaSiswi.statusAktif,
@@ -1276,28 +1240,11 @@ function getSiswaSiswibyUid (models) {
 function postSiswaSiswi (models) {
   return async (req, res, next) => {
 		let { user, userdetail } = req.body
-		let where = {}
     try {
+			if((user.jenis == 'ADD' || user.jenis == 'EDIT') && validateRequestBodyPayload(req)) return UNPROCESSABLE(res, validateRequestBodyPayload(req))
 			const { userID } = req.JWTDecoded
 			let salt, hashPassword, kirimdataUser, kirimdataUserDetail;
 			if(user.jenis == 'ADD'){
-				where = { 
-					statusAktif: true,
-					[Op.or]: [
-						{ email: user.email },
-						{ username: user.username },
-						{ '$UserDetail.nomor_induk$': userdetail.nomorInduk },
-					] 
-				}
-				const count = await models.User.count({
-					where,
-					include: [
-						{ 
-							model: models.UserDetail,
-						}
-					],
-				});
-				if(count) return NOT_FOUND(res, 'data sudah di gunakan !')
 				// const ksuid = await createKSUID()
 				salt = await bcrypt.genSalt();
 				hashPassword = await bcrypt.hash(user.password, salt);
@@ -1407,11 +1354,11 @@ function postSiswaSiswi (models) {
 						dataKoreksiNilai: JSON.stringify([
 							{
 								semester: 'ganjil',
-								koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: 0 }
+								koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: { dataessay: [], total: 0 } }
 							},
 							{
 								semester: 'genap',
-								koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: 0 }
+								koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: { dataessay: [], total: 0 } }
 							},
 						]),
 					})
@@ -1423,11 +1370,6 @@ function postSiswaSiswi (models) {
 				})
 
 			}else if(user.jenis == 'EDIT'){
-				if(await models.User.findOne({where: {email: user.email, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Email sudah di gunakan !')
-				if(await models.User.findOne({where: {username: user.username, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Username sudah di gunakan !')
-				if(userdetail.nomorInduk !== '-'){
-					if(await models.UserDetail.findOne({where: {nomorInduk: userdetail.nomorInduk, [Op.not]: [{idUser: user.idUser}]}})) return NOT_FOUND(res, 'Nomor Induk sudah di gunakan !')
-				}
 				salt = await bcrypt.genSalt();
 				hashPassword = await bcrypt.hash(user.password, salt);
 				kirimdataUser = {
@@ -1647,7 +1589,7 @@ function getWaliKelas (models) {
 					include: [
 						{ 
 							model: models.UserDetail,
-							where: { kelas: kelas },
+							where: { kelas },
 						},
 					],
 				});
@@ -1673,13 +1615,13 @@ function getWaliKelas (models) {
 						alfa: 0,
 						ijin: 0,
 					}
-					let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+					let semester = cms_setting.semester.label.toLowerCase()
 					let resultNilai = await Promise.all(dataNilai.map(async str => {
-						const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: kelas, mapel: str.mapel, status: true } });
-						const mengajar = await models.Mengajar.findOne({ where: { kode: str.mapel } })
-						const { label } = mengajar.dataValues
+						const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas, mapel: str.mapel, status: true } });
+						const mengajar = await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: str.mapel })
+						const { label } = mengajar[0]
 						let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
-						let kkm = dataJadwal ? dataJadwal.kkm : cms_setting.kkm
+						let kkm = dataJadwal?.kkm || cms_setting?.kkm
 						let dataStruktural = null
 						if(dataJadwal) {
 							dataStruktural = await models.User.findOne({ where: { idUser: dataJadwal.idUser } });
@@ -1773,7 +1715,7 @@ function updatePeringkat (models) {
 	
 				const cms_setting = await dataCMSSettings({ models })
 
-				let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+				let semester = cms_setting.semester.label.toLowerCase()
 				const getResult = await Promise.all(dataSiswaSiswi.map(async val => {
 					const dataNilai = await models.Nilai.findAll({
 						where: { idUser: val.idUser },
@@ -1810,7 +1752,7 @@ function updatePeringkat (models) {
 				})
 			})
 
-			return OK(res)
+			return OK(res, result)
     } catch (err) {
 			return NOT_FOUND(res, err.message)
     }
@@ -1876,12 +1818,9 @@ function getJadwalMengajar (models) {
 							status: str.status,
 						})
 					})
-					const mengajar = await models.Mengajar.findOne({ where: { kode: key } })
-					const { kode, label } = mengajar.dataValues
-					return { mapel: {
-						kodeMapel: kode,
-						namaMapel: label,
-					}, resdata: _.orderBy(resdata, 'kelas', 'asc') }
+					const mengajar = await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: key })
+					const { value, label } = mengajar[0]
+					return { mapel: { value, label }, resdata: _.orderBy(resdata, 'kelas', 'asc') }
 				}))
 				result.push({
 					idUser: dataUser.idUser,
@@ -1925,16 +1864,84 @@ function getJadwalPelajaran (models) {
 			const dataKelas = await models.Kelas.findAll({ where: { status: true } })
 			const cms_setting = await dataCMSSettings({ models })
 			let tambahJadwal = []
+			const gabungResponse = item => {
+				return item.map(async x => {
+					const mengajar = await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: x.dataValues.mapel })
+					return { ...x.dataValues, Mengajar: mengajar[0] }
+				})
+			}
+
+			const arrangeResponseStruktural = item => {
+				return item.map(async val => {
+					const { UserDetail } = val
+					return {
+						idUser: val.idUser,
+						nama: val.nama,
+						jabatanGuru: UserDetail.jabatanGuru ? await _allOptionCms(models, { where: { kode: 'jabatan' } }, { param: UserDetail.jabatanGuru }) : [],
+						mengajarBidang: UserDetail.mengajarBidang ? await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: UserDetail.mengajarBidang }) : [],
+						mengajarKelas: UserDetail.mengajarKelas,
+						waliKelas: UserDetail.waliKelas,
+					}
+				})
+			}
+
+			const arrangeResponseUser = item => {
+				let kepala_sekolah = null, kurikulum = null
+				item.filter(x => x.UserDetail.jabatanGuru !== null).map(x => {
+					let splitJabatan = x.UserDetail.jabatanGuru.split(', ')
+					if(splitJabatan.includes('1')){
+						kepala_sekolah = {
+							idUser: x.idUser,
+							nama: x.nama,
+							nomorInduk: x.UserDetail.nomorInduk,
+							signature: x.UserDetail.signature ? `${BASE_URL}image/${x.UserDetail.signature}` : null,
+						}
+					}else if(splitJabatan.includes('3')){
+						kurikulum = {
+							idUser: x.idUser,
+							nama: x.nama,
+							nomorInduk: x.UserDetail.nomorInduk,
+							signature: x.UserDetail.signature ? `${BASE_URL}image/${x.UserDetail.signature}` : null,
+						}
+					}
+				})
+				return { kepalaSekolah: kepala_sekolah, kurikulum }
+			}
+
+			const strukturalData = async () => {
+				const dataStruktural = await models.User.findAll({
+					where: {
+						consumerType: 3,
+						statusAktif: true
+					},
+					attributes: ['idUser', 'nama'],
+					include: [
+						{ 
+							model: models.UserDetail,
+							attributes: ['nomorInduk', 'jabatanGuru', 'mengajarBidang', 'mengajarKelas', 'waliKelas', 'signature'],
+						},
+					],
+					order: [['createdAt', 'ASC']],
+				});
+
+				return { 
+					dataGuru: await Promise.all(arrangeResponseStruktural(dataStruktural)),
+					...arrangeResponseUser(dataStruktural)
+				 }
+			}
+			
 			let result = await Promise.all(hariArray.map(async str => {
 				const dataJadwal = await models.JadwalMengajar.findAll({ 
 					where: { hari: str, status: true },
-					attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'hari', 'startTime', 'endTime'],
+					attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'hari', 'startTime', 'endTime', 'modul'],
 					include: [
 						{ model: models.User, attributes: ['nama'] },
-						{ model: models.Mengajar, attributes: ['label', 'alias', 'color'] },
 					],
+					nest: true
 				});
-				tambahJadwal = str !== 'Sabtu' ? [ ...dataJadwal, {
+				const dataKumpul = await Promise.all(gabungResponse(dataJadwal))
+				
+				tambahJadwal = str !== 'Sabtu' ? [ ...dataKumpul, {
 					idJadwalMengajar: null,
 					idUser: null,
 					kelas: null,
@@ -1975,7 +1982,7 @@ function getJadwalPelajaran (models) {
 						alias: str === 'Jumat' ? 'Istirahat / Shalat Jumat' : 'Istirahat / Shalat Zuhur',
 						color: '#e1e1f0'
 					}
-				}] : [ ...dataJadwal, {
+				}] : [ ...dataKumpul, {
 					idJadwalMengajar: null,
 					idUser: null,
 					kelas: null,
@@ -2000,10 +2007,10 @@ function getJadwalPelajaran (models) {
 						resdata.push({
 							idJadwalMengajar,
 							idUser,
-							namaGuru: x.User.nama,
-							mapel: x.Mengajar.label,
-							alias: x.Mengajar.alias,
-							color: x.Mengajar.color,
+							namaGuru: x?.User?.nama,
+							mapel: x?.Mengajar?.label,
+							alias: x?.Mengajar?.alias,
+							color: x?.Mengajar?.color,
 							kelas,
 						})
 						waktu = `${startTime} - ${endTime}`
@@ -2013,77 +2020,42 @@ function getJadwalPelajaran (models) {
 				return { hari: str, dataJadwal: kumpul }
 			}))
 
-			const dataStruktural = await models.User.findAll({
-				where: {
-					consumerType: 3,
-					statusAktif: true
-				},
-				attributes: ['idUser', 'nama'],
-				include: [
-					{ 
-						model: models.UserDetail,
-						attributes: ['jabatanGuru', 'mengajarBidang', 'mengajarKelas', 'waliKelas'],
-					},
-				],
-				order: [['createdAt', 'ASC']],
-			});
-
-			const datauser = await models.User.findAll({
-				attributes: ['idUser', 'nama'],
-				include: [
-					{ 
-						attributes: ['nomorInduk', 'jabatanGuru', 'signature'],
-						model: models.UserDetail,
-					},
-				],
-			});
-
-			const kepala_sekolah = [], kurikulum = []
-			await Promise.all(datauser.filter(x => x.UserDetail.jabatanGuru !== null).map(x => {
-				let splitJabatan = x.UserDetail.jabatanGuru.split(', ')
-				if(splitJabatan.includes('1')){
-					kepala_sekolah.push(x)
-				}else if(splitJabatan.includes('3')){
-					kurikulum.push(x)
-				}
-			}))
-
-			const getResult = await Promise.all(dataStruktural.map(async val => {
-				const { UserDetail } = val
-				return {
-					idUser: val.idUser,
-					nama: val.nama,
-					jabatanGuru: UserDetail.jabatanGuru ? await _jabatanOption({ models, kode: UserDetail.jabatanGuru }) : [],
-					mengajarBidang: UserDetail.mengajarBidang ? await _mengajarOption({ models, kode: UserDetail.mengajarBidang }) : [],
-					mengajarKelas: UserDetail.mengajarKelas,
-					waliKelas: UserDetail.waliKelas,
-				}
-			}))
-
 			return OK(res, {
-				result,
+				jadwal: result,
 				dataKelas,
-				dataGuru: getResult,
-				url: BASE_URL,
-				kepalaSekolah: {
-					idUser: kepala_sekolah.length ? kepala_sekolah[0].idUser : '',
-					nama: kepala_sekolah.length ? kepala_sekolah[0].nama : '',
-					nomorInduk: kepala_sekolah.length ? kepala_sekolah[0].UserDetail.nomorInduk : '',
-					signature: kepala_sekolah.length ? kepala_sekolah[0].UserDetail.signature : '',
-				},
-				kurikulum: {
-					idUser: kurikulum.length ? kurikulum[0].idUser : '',
-					nama: kurikulum.length ? kurikulum[0].nama : '',
-					nomorInduk: kurikulum.length ? kurikulum[0].UserDetail.nomorInduk : '',
-					signature: kurikulum.length ? kurikulum[0].UserDetail.signature : '',
-				},
+				struktural: await strukturalData(),
 				ttd: {
 					namasekolah: cms_setting.namasekolah,
-					tempat: cms_setting.kelurahan.label.split('. ')[1],
+					tempat: cms_setting.kelurahan.label,
 					tanggal: dateconvert(new Date())
 				},
 			});
     } catch (err) {
+			console.log(err);
+			
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getModulPelajaran (models) {
+  return async (req, res, next) => {
+		let { kelas } = req.query
+    try {
+			const dataJadwal = await models.JadwalMengajar.findAll({ where: { kelas }, order: [[literal('CAST(mapel AS UNSIGNED)'), 'ASC']], raw: true });
+			const gabungResponse = item => {
+				return item.map(async x => {
+					const mengajar = await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: x.mapel })
+					const { label } = mengajar[0]
+					const modul = await models.Berkas.findOne({where: { idBerkas: x.modul }, raw: true})
+					return { ...x, namaMapel: label, modul: { ...modul, file: modul ? `${BASE_URL}/berkas/${modul.file}` : null } }
+				})
+			}
+
+			return OK(res, await Promise.all(gabungResponse(dataJadwal)));
+    } catch (err) {
+			console.log(err);
+			
 			return NOT_FOUND(res, err.message)
     }
   }  
@@ -2095,24 +2067,25 @@ function postJadwalMengajar (models) {
 		try {
 			if(body.jenis === 'JadwalMengajar'){
 				let kumpul = []
-				await Promise.all(body.mapel.map(async (val) => {
-					await Promise.all(body.kelas.map(val2 => {
+				let kumpulan = []
+				body.mapel.forEach(mapelItem => {
+					body.kelas.forEach(kelasItem => {
 						kumpul.push({
 							idUser: body.idUser,
-							mapel: val,
-							kelas: val2
+							mapel: mapelItem,
+							kelas: kelasItem
 						})
-					}))
-				}))
+					})
+				})
 
-				let kumpulan = []
 				await Promise.all(kumpul.map(async val => {
 					const dataJadwal = await models.JadwalMengajar.findOne({ 
 						where: { idUser: body.idUser, mapel: val.mapel, kelas: val.kelas, status: true },
-						// attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'startTime', 'endTime', 'jumlahTugas', 'kkm', 'modul', 'status']
+						attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'startTime', 'endTime', 'jumlahTugas', 'kkm', 'modul', 'status'],
+						raw: true
 					});
 					if(!dataJadwal){
-						return kumpulan.push({
+						kumpulan.push({
 							idJadwalMengajar: makeRandom(10),
 							idUser: body.idUser,
 							mapel: val.mapel,
@@ -2122,23 +2095,10 @@ function postJadwalMengajar (models) {
 							endTime: null,
 							jumlahTugas: 10,
 							kkm: 0,
-							modul: null,
 							status: true
 						})
 					}else{
-						kumpulan.push({
-							idJadwalMengajar: dataJadwal.idJadwalMengajar,
-							idUser: dataJadwal.idUser,
-							mapel: dataJadwal.mapel,
-							kelas: dataJadwal.kelas,
-							hari: dataJadwal.hari,
-							startTime: dataJadwal.startTime,
-							endTime: dataJadwal.endTime,
-							jumlahTugas: dataJadwal.jumlahTugas,
-							kkm: dataJadwal.kkm,
-							modul: dataJadwal.modul,
-							status: dataJadwal.status
-						})
+						kumpulan.push(dataJadwal)
 					}
 				}))
 
@@ -2152,28 +2112,630 @@ function postJadwalMengajar (models) {
 					await models.JadwalMengajar.bulkCreate(_.orderBy(kumpulan, ['mapel', 'kelas'], ['asc', 'asc']), { transaction: trx })
 				})
 			}else if(body.jenis === 'ModulAndTime'){
-				let kirimData = ''
 				for (let index = 0; index < body.idJadwalMengajar.length; index++) {
 					let timeJadwal = body.timeJadwal[index] ? body.timeJadwal[index] : []
 					let startTime = timeJadwal.length ? `${timeJadwal[0].hours}:${timeJadwal[0].minutes}:${timeJadwal[0].seconds}` : null
 					let endTime = timeJadwal.length ? `${timeJadwal[1].hours}:${timeJadwal[1].minutes}:${timeJadwal[1].seconds}` : null
-					kirimData = {
+					let kirimData = {
 						hari: body.hari[index],
 						startTime,
 						endTime,
 						modul: body.tautan[index],
-					}
+					}					
 					await models.JadwalMengajar.update(kirimData, { where: { idJadwalMengajar: body.idJadwalMengajar[index], idUser: body.idUser } })
 				}
 			}else{
 				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
 			}
 
-			return OK(res)
+			return OK(res, body)
 		} catch (err) {
+			console.log(err);
+			
 			return NOT_FOUND(res, err.message)
 		}
 	}
+}
+
+function getKelasSiswa (models) {
+  return async (req, res, next) => {
+		let { kelas, mengajar } = req.query
+    let where = {}
+    try {
+			if(kelas){
+				where.status = true
+				where.kelas = { [Op.like]: `${kelas}%` }
+			}
+
+			if(mengajar){
+				let splitarr = mengajar.split(', ')
+				let kumpulKelas = []
+				splitarr.map(str => {
+					if(kelas){
+						let split = str.split('-')
+						if(split[0] == kelas){
+							kumpulKelas.push(`${split[0]}-${split[1]}`)
+						}
+					}else{
+						kumpulKelas.push(str)
+					}
+				})
+
+				const dataKelas = await models.Kelas.findAll({
+					where: { kelas: kumpulKelas },
+					order: [
+						['idKelas', 'ASC'],
+					],
+				});
+	
+				let result = await Promise.all(dataKelas.map(async val => {
+					let jumlah = await models.User.count({
+						where: { mutasiAkun: false, statusAktif: true },
+						include: [
+							{ 
+								model: models.UserDetail,
+								where: { kelas: val.dataValues.kelas },
+							},
+						],
+					})
+					return { kelas: val.dataValues.kelas, jumlah }
+				}))
+
+				return OK(res, result)
+			}
+
+			where.status = true
+      const dataKelas = await models.Kelas.findAll({
+				where,
+				order: [
+					['idKelas', 'ASC'],
+				],
+				raw: true
+			});
+
+			let result = await Promise.all(dataKelas.map(async val => {
+				let jumlah = await models.User.count({
+					where: { mutasiAkun: false },
+					include: [
+						{ 
+							model: models.UserDetail,
+							where: { kelas: val.kelas },
+						},
+					],
+				})
+				return { kelas: val.kelas, jumlah }
+			}))
+
+			return OK(res, result)
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getQuestionExam (models) {
+  return async (req, res, next) => {
+		let { page = 1, limit = 20, keyword } = req.query
+    let where = {}
+    try {
+			const { userID, consumerType } = req.JWTDecoded
+			const dataUser = await models.UserDetail.findOne({
+				where: { idUser: userID },
+				attributes: ["mengajarBidang", "mengajarKelas"]
+			})
+			let kelas = []
+			if(consumerType === 3){
+				let data = dataUser?.mengajarKelas?.split(', ') || []
+				data.map(val => {
+					let key = val.split('-')[0]
+					if(!_.includes(kelas, key)){
+						kelas.push(key)
+					}
+				})
+			}
+
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ mapel : { [Op.like]: `%${keyword}` }},
+					{ kelas : { [Op.like]: `%${keyword}` }},
+					{ jenis : { [Op.like]: `%${keyword}` }},
+				]
+			} : {}
+			
+			where = consumerType === 1 || consumerType === 2 ? whereKey : { ...whereKey, mapel: dataUser?.mengajarBidang?.split(', ') || [], kelas: kelas }
+
+			const { count, rows: dataQuestionExam } = await models.QuestionExam.findAndCountAll({
+				where,
+				order: [
+					['createdAt', 'DESC'],
+				],
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+			const getResult = await Promise.all(dataQuestionExam.map(async val => {
+				const dataUser = await models.User.findOne({where: { idUser: val.createBy },attributes: ["idUser", "nama"]})
+				const dataUserUpdate = await models.User.findOne({where: { idUser: val.updateBy },attributes: ["idUser", "nama"]})
+				// const dataMapel = await _mengajarOption({ models, kode: val.mapel })
+				const mengajar = await _allOptionCms(models, { where: { kode: 'mengajar' } }, { param: val.mapel })
+				const { value, label } = mengajar[0]
+				const pertanyaan = JSON.parse(val.pertanyaan)
+				const pilihan = val.pilihan ? JSON.parse(val.pilihan) : []
+				return {
+					idExam: val.idExam,
+					idUser: dataUser.idUser,
+					kode: val.kode,
+					kodemapel: value,
+					namamapel: label,
+					kelas: val.kelas,
+					jenis: val.jenis,
+					pertanyaan: {
+						text: pertanyaan.text,
+						file: pertanyaan.file ? `${BASE_URL}berkas/${pertanyaan.file}` : null,
+					},
+					pilihan: val.jenis === 'pilihan ganda' || val.jenis === 'benar salah' ? 
+						pilihan.map(v => {
+							return {
+								jenis: v.jenis,
+								value: v.value,
+								text: v.text,
+								file: v.file ? `${BASE_URL}berkas/${v.file}` : null,
+							}
+						})
+					: {
+						...pilihan[0],
+						file: pilihan.length ? `${BASE_URL}berkas/${pilihan[0].file}` : null,
+					},
+					kunci: val.kunci,
+					statusAktif: val.statusAktif,
+					flag: val.deleteBy !== null || val.deletedAt !== null,
+					createBy: dataUser.nama,
+					updateBy: dataUserUpdate ? dataUserUpdate.nama : '-',
+					createdAt: val.createdAt,
+				}
+			}))
+
+			const responseData = buildMysqlResponseWithPagination(
+				getResult,
+				{ limit, page, total: count }
+			)
+
+			return OK(res, responseData);
+    } catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function postQuestionExam (models) {
+  return async (req, res, next) => {
+		let body = req.body
+    try {
+			const { userID } = req.JWTDecoded
+			let kirimdata;
+			if(body.proses == 'ADD'){
+				kirimdata = {
+					mapel: body.mapel,
+					kelas: body.kelas,
+					kode: makeRandom(10),
+					jenis: body.jenis,
+					pertanyaan: body.enabledPertanyaan ? JSON.stringify(body.pertanyaan) : JSON.stringify({text: body.pertanyaan.text, file: null}),
+					pilihan: body.pilihan ? JSON.stringify(body.pilihan) : null,
+					kunci: body.kunci ? body.kunci : null,
+					statusAktif: 1,
+					createBy: userID,
+				}
+
+				await sequelizeInstance.transaction(async trx => {
+					await models.QuestionExam.create(kirimdata, { transaction: trx })
+					let pertanyaan = JSON.parse(kirimdata.pertanyaan)
+					let pilihan = kirimdata.pilihan ? JSON.parse(kirimdata.pilihan) : []
+					let jenis_pilihan = pilihan.length ? pilihan[0].jenis : pilihan
+					if(pertanyaan.file){
+						await models.TemporaryFile.update({ use: 1 }, { where: { file: pertanyaan.file } }, { transaction: trx })
+					}
+					if(jenis_pilihan === 'gambar' && (body.jenis === 'pilihan ganda' || body.jenis === 'menjodohkan')){
+						let filePilihan = []
+						pilihan.map(x => filePilihan.push(x.file))
+						await models.TemporaryFile.update({ use: 1 }, { where: { file: filePilihan } }, { transaction: trx })
+					}
+				})
+			}else if(body.proses == 'EDIT'){
+				kirimdata = {
+					mapel: body.mapel,
+					kelas: body.kelas,
+					jenis: body.jenis,
+					pertanyaan: body.enabledPertanyaan ? JSON.stringify(body.pertanyaan) : JSON.stringify({text: body.pertanyaan.text, file: null}),
+					pilihan: body.pilihan ? JSON.stringify(body.pilihan) : null,
+					kunci: body.kunci ? body.kunci : null,
+					updateBy: userID,
+				}
+				
+				await sequelizeInstance.transaction(async trx => {
+					const question = await models.QuestionExam.findOne({ where: { kode: body.kode } }, { transaction: trx })
+					const { pertanyaan, pilihan } = question.dataValues
+					let pertanyaanBody = JSON.parse(kirimdata.pertanyaan)
+					let pilihanBody = JSON.parse(kirimdata.pilihan)
+					let cekPertanyaan = JSON.parse(pertanyaan)
+					let cekPilihan = JSON.parse(pilihan)
+
+					if(cekPertanyaan.file !== pertanyaanBody.file){
+						await models.TemporaryFile.update({ use: 0 }, { where: { file: cekPertanyaan.file } }, { transaction: trx })
+						await models.TemporaryFile.update({ use: 1 }, { where: { file: pertanyaanBody.file } }, { transaction: trx })
+					}
+					if(cekPilihan){
+						cekPilihan.map(async x => {
+							if(x.jenis === 'gambar'){
+								await models.TemporaryFile.update({ use: 0 }, { where: { file: x.file } }, { transaction: trx })
+							}
+						})
+						let filePilihan = []
+						pilihanBody.map(x => filePilihan.push(x.file))
+						await models.TemporaryFile.update({ use: 1 }, { where: { file: filePilihan } }, { transaction: trx })
+					}
+					await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } }, { transaction: trx })
+				})
+			}else if(body.proses == 'DELETESOFT'){
+				kirimdata = {
+					statusAktif: 0,
+					deleteBy: userID,
+					deletedAt: new Date(),
+				}
+				await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } })	
+			}else if(body.proses == 'DELETEHARD'){
+				await sequelizeInstance.transaction(async trx => {
+					const dataQuestionExam = await models.QuestionExam.findOne({
+						where: { kode: body.kode }
+					}, { transaction: trx });
+					const { pertanyaan, pilihan } = dataQuestionExam.dataValues
+					let pertanyaanFile = JSON.parse(pertanyaan)
+					let pilihanFile = JSON.parse(pilihan)
+					if(pertanyaanFile.file){ 
+						fs.unlinkSync(path.join(__dirname, `../public/berkas/${pertanyaanFile.file}`)); 
+						await models.TemporaryFile.destroy({ where: { file: pertanyaanFile.file } }, { transaction: trx })
+					}
+					if(pilihanFile){
+						pilihanFile.map(async x => {
+							if(x.file){
+								fs.unlinkSync(path.join(__dirname, `../public/berkas/${x.file}`));
+								await models.TemporaryFile.destroy({ where: { file: x.file } }, { transaction: trx })
+							}
+						})
+					}
+					await models.QuestionExam.destroy({ where: { kode: body.kode } }, { transaction: trx })
+				})
+			}else if(body.proses == 'STATUSRECORD'){
+				kirimdata = { 
+					statusAktif: body.kondisi, 
+					updateBy: userID
+				}
+				await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } })
+			}else{
+				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			}
+
+			return OK(res);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getJadwalExam (models) {
+  return async (req, res, next) => {
+		let { page = 1, limit = 20, sort = '', mapel, kelas } = req.query
+    let where = {}
+    try {
+			// const { userID, consumerType } = req.JWTDecoded
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			if(mapel) {
+				where.mapel = mapel
+			}
+			if(kelas) {
+				where.kelas = kelas
+			}
+
+			const mappingSortField = [
+				'kelas',
+				['namamapel', sequelize.literal('`Mengajar.label`')],
+				'status',
+			]
+
+			const orders = buildOrderQuery(sort, mappingSortField)
+			
+			if(orders.length === 0){
+				orders.push(['createdAt', 'DESC'])
+			}
+
+			const { count, rows: dataJadwalExam } = await models.JadwalExam.findAndCountAll({
+				where,
+				include: [
+					{ 
+						model: models.Mengajar,
+					},
+				],
+				order: orders,
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+			const getResult = await Promise.all(dataJadwalExam.map(async val => {
+				const date1 = dayjs(val.startDate);
+				const date2 = dayjs(val.endDate);
+				let minutes = date2.diff(date1, 'minutes');
+				const limitSoal = JSON.parse(val.limitSoal);
+				const kumpulanKodeSoal = JSON.parse(val.kumpulanKodeSoal);
+				return {
+					idJadwalExam: val.idJadwalExam,
+					kodemapel: val.Mengajar.kode,
+					namamapel: val.Mengajar.label,
+					kelas: val.kelas,
+					waktu: minutes,
+					startDate: val.startDate,
+					endDate: val.endDate,
+					limitSoal: {
+						pilihanganda: typeof limitSoal.pilihanganda === 'undefined' ? 0 : limitSoal.pilihanganda,
+						essay: typeof limitSoal.essay === 'undefined' ? 0 : limitSoal.essay,
+						menjodohkan: typeof limitSoal.menjodohkan === 'undefined' ? 0 : limitSoal.menjodohkan,
+						benarsalah: typeof limitSoal.benarsalah === 'undefined' ? 0 : limitSoal.benarsalah,
+					},
+					kumpulanKodeSoal: {
+						pilihanganda: typeof kumpulanKodeSoal.pilihanganda === 'undefined' ? [] : kumpulanKodeSoal.pilihanganda,
+						essay: typeof kumpulanKodeSoal.essay === 'undefined' ? [] : kumpulanKodeSoal.essay,
+						menjodohkan: typeof kumpulanKodeSoal.menjodohkan === 'undefined' ? [] : kumpulanKodeSoal.menjodohkan,
+						benarsalah: typeof kumpulanKodeSoal.benarsalah === 'undefined' ? [] : kumpulanKodeSoal.benarsalah,
+					},
+					status: val.status,
+					createdAt: val.createdAt,
+				}
+			}))
+
+			const responseData = buildMysqlResponseWithPagination(
+				getResult,
+				{ limit, page, total: count }
+			)
+
+			return OK(res, responseData);
+    } catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getRandomQuestion (models) {
+	return async (req, res, next) => {
+    const { mapel, kelas, limitSoal } = req.body
+	  try {
+			const dataQuestionExam = await models.QuestionExam.findAll({
+				where: {
+					mapel: mapel,
+					kelas: kelas.split('-')[0],
+				},
+				attributes: ['kode', 'jenis'],
+				raw: true
+			});
+
+			let pilihanganda = [], temppilihanganda = [], essay = [], tempessay = [], menjodohkan = [], tempmenjodohkan = [], benarsalah = [], tempbenarsalah = []
+
+			await dataQuestionExam.map(x => {
+				if(limitSoal.pilihanganda > 0 && x.jenis === 'pilihan ganda'){
+					temppilihanganda.push(x.kode)
+				}
+				
+				if(limitSoal.essay > 0 && x.jenis === 'essay'){
+					tempessay.push(x.kode)
+				}
+				
+				if(limitSoal.menjodohkan > 0 && x.jenis === 'menjodohkan'){
+					tempmenjodohkan.push(x.kode)
+				}
+				
+				if(limitSoal.benarsalah > 0 && x.jenis === 'benar salah'){
+					tempbenarsalah.push(x.kode)
+				}
+			})
+			if(temppilihanganda.length < limitSoal.pilihanganda) return UNPROCESSABLE(res, temppilihanganda.length == 0 ? `Soal Pilihan Ganda tidak tersedia, harap menambahkan dahulu soal tersebut` : `Soal Pilihan Ganda yang tersedia hanya ${temppilihanganda.length}`)
+			if(tempessay.length < limitSoal.essay) return UNPROCESSABLE(res, tempessay.length == 0 ? `Soal Essay tidak tersedia, harap menambahkan dahulu soal tersebut` : `Soal Essay yang tersedia hanya ${tempessay.length}`)
+			if(tempmenjodohkan.length < limitSoal.menjodohkan) return UNPROCESSABLE(res, tempmenjodohkan.length == 0 ? `Soal Menjodohkan tidak tersedia, harap menambahkan dahulu soal tersebut` : `Soal Menjodohkan yang tersedia hanya ${tempmenjodohkan.length}`)
+			if(tempbenarsalah.length < limitSoal.benarsalah) return UNPROCESSABLE(res, tempbenarsalah.length == 0 ? `Soal Benar Salah tidak tersedia, harap menambahkan dahulu soal tersebut` : `Soal Benar Salah yang tersedia hanya ${tempbenarsalah.length}`)
+
+			pilihanganda = getRandomArray(temppilihanganda, limitSoal.pilihanganda)
+			essay = getRandomArray(tempessay, limitSoal.essay)
+			menjodohkan = getRandomArray(tempmenjodohkan, limitSoal.menjodohkan)
+			benarsalah = getRandomArray(tempbenarsalah, limitSoal.benarsalah)
+			
+			return OK(res, { pilihanganda, essay, menjodohkan, benarsalah })
+    } catch (err) {
+      return NOT_FOUND(res, err.message)
+	  }
+	}
+}
+
+function postJadwalExam (models) {
+	return async (req, res, next) => {
+		  let body = req.body
+	  try {
+			  const { userID } = req.JWTDecoded
+			  let kirimdata;
+			  if(body.jenis == 'ADD'){
+				  kirimdata = {
+					  idJadwalExam: makeRandom(10),
+					  mapel: body.mapel,
+					  kelas: body.kelas,
+					  startDate: body.dateRange[0],
+					  endDate: body.dateRange[1],
+					  limitSoal: body.limitSoal,
+					  kumpulanKodeSoal: body.kumpulanKodeSoal,
+					  status: 1,
+				  }
+				  await models.JadwalExam.create(kirimdata)
+			  }else if(body.jenis == 'EDIT'){
+				  kirimdata = {
+					  mapel: body.mapel,
+					  kelas: body.kelas,
+					  startDate: body.dateRange[0],
+					  endDate: body.dateRange[1],
+						limitSoal: body.limitSoal,
+					  kumpulanKodeSoal: body.kumpulanKodeSoal,
+				  }
+				  await models.JadwalExam.update(kirimdata, { where: { idJadwalExam: body.idJadwalExam } })
+			  }else if(body.jenis == 'DELETE'){
+				  await models.JadwalExam.destroy({ where: { idJadwalExam: body.idJadwalExam } })	
+			  }else if(body.jenis == 'STATUSRECORD'){
+				  kirimdata = { 
+					  status: body.status, 
+					}
+				  await models.JadwalExam.update(kirimdata, { where: { idJadwalExam: body.idJadwalExam } })
+			  }else{
+				  return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			  }
+  
+			  return OK(res);
+	  } catch (err) {
+			  return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
+function getListPickExam (models) {
+  return async (req, res, next) => {
+		let { page = 1, limit = 20, keyword, jenis, kelas, mapel } = req.query
+    let where = {}
+    try {
+			// const { userID, consumerType } = req.JWTDecoded
+			// const dataUser = await models.UserDetail.findOne({
+			// 	where: { idUser: userID },
+			// 	attributes: ["mengajarBidang", "mengajarKelas"]
+			// })
+			// let kelas = []
+			// if(consumerType === 3){
+			// 	let data = dataUser.mengajarKelas.split(', ')
+			// 	data.map(val => {
+			// 		let key = val.split('-')[0]
+			// 		if(!_.includes(kelas, key)){
+			// 			kelas.push(key)
+			// 		}
+			// 	})
+			// }
+
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ mapel : { [Op.like]: `%${keyword}` }},
+					{ kelas : { [Op.like]: `%${keyword}` }},
+					{ jenis : { [Op.like]: `%${keyword}` }},
+				],
+			} : {}
+			
+			// where = consumerType === 1 || consumerType === 2 ? { ...whereKey, jenis, kelas: kelasOp } : { ...whereKey, jenis, mapel: dataUser.mengajarBidang.split(', '), kelas }
+			where = { ...whereKey, jenis, kelas, mapel }
+
+			const { count, rows: dataQuestionExam } = await models.QuestionExam.findAndCountAll({
+				where,
+				order: [
+					['createdAt', 'DESC'],
+				],
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+			const records = await Promise.all(dataQuestionExam.map(async val => {
+				const dataUser = await models.User.findOne({where: { idUser: val.createBy },attributes: ["idUser", "nama"]})
+				const dataUserUpdate = await models.User.findOne({where: { idUser: val.updateBy },attributes: ["idUser", "nama"]})
+				const dataMapel = await _mengajarOption({ models, kode: val.mapel })
+				const pertanyaan = JSON.parse(val.pertanyaan)
+				const pilihan = val.pilihan ? JSON.parse(val.pilihan) : []
+				return {
+					kode: val.kode,
+					idUser: dataUser.idUser,
+					kodemapel: dataMapel ? dataMapel[0].kode : '',
+					namamapel: dataMapel ? dataMapel[0].label : '',
+					kelas: val.kelas,
+					jenis: val.jenis,
+					pertanyaan: {
+						text: pertanyaan.text,
+						file: pertanyaan.file ? `${BASE_URL}berkas/${pertanyaan.file}` : null,
+					},
+					pilihan: val.jenis === 'pilihan ganda' || val.jenis === 'benar salah' ? 
+						pilihan.map(v => {
+							return {
+								jenis: v.jenis,
+								value: v.value,
+								text: v.text,
+								file: v.file ? `${BASE_URL}berkas/${v.file}` : null,
+							}
+						})
+					: {
+						...pilihan[0],
+						file: pilihan.length ? `${BASE_URL}berkas/${pilihan[0].file}` : null,
+					},
+					kunci: val.kunci,
+					createdAt: val.createdAt,
+					status: 'nonaktif',
+				}
+			}))
+			const arrangeResponse = () => {
+				const totalPage = Math.ceil(count / limit)
+				const hasNext = totalPage > parseInt(page, 10)
+				const pageSummary = { limit: Number(limit), page: Number(page), hasNext, lastID: '', total: count, totalPage }
+
+				if(count > 0){
+					pageSummary.lastID = dataQuestionExam[dataQuestionExam.length - 1].kode
+					return { records, pageSummary }
+				}
+				return { records: [], pageSummary }
+			}
+
+			return OK(res, arrangeResponse());
+    } catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function postListPickExam (models) {
+  return async (req, res, next) => {
+		let body = req.body
+    try {
+			const dataJadwalExam = await models.JadwalExam.findOne({
+				where: { idJadwalExam: body.idJadwalExam },
+			});
+			let limitsoal = JSON.parse(dataJadwalExam.dataValues.limitSoal)
+			let kumpulankodesoal = JSON.parse(dataJadwalExam.dataValues.kumpulanKodeSoal)
+			let kode = JSON.parse(body.kode)
+			let limit = () => {
+				if(body.jenis === 'pilihan ganda'){
+					return { ...limitsoal, pilihanganda: kode.length }
+				}else if(body.jenis === 'menjodohkan'){
+					return { ...limitsoal, menjodohkan: kode.length }
+				}else if(body.jenis === 'benar salah'){
+					return { ...limitsoal, benarsalah: kode.length }
+				}else if(body.jenis === 'essay'){
+					return { ...limitsoal, essay: kode.length }
+				}
+			}
+			let kumpulankode = () => {
+				if(body.jenis === 'pilihan ganda'){
+					return { ...kumpulankodesoal, pilihanganda: getRandomArray(kode, kode.length) }
+				}else if(body.jenis === 'menjodohkan'){
+					return { ...kumpulankodesoal, menjodohkan: getRandomArray(kode, kode.length) }
+				}else if(body.jenis === 'benar salah'){
+					return { ...kumpulankodesoal, benarsalah: getRandomArray(kode, kode.length) }
+				}else if(body.jenis === 'essay'){
+					return { ...kumpulankodesoal, essay: getRandomArray(kode, kode.length) }
+				}
+			}
+			let kirimdata = {
+				limitSoal: JSON.stringify(limit()),
+				kumpulanKodeSoal: JSON.stringify(kumpulankode()),
+			}
+			await models.JadwalExam.update(kirimdata, { where: { idJadwalExam: body.idJadwalExam } })
+			return OK(res);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
 }
 
 function getPenilaian (models) {
@@ -2205,7 +2767,7 @@ function getPenilaian (models) {
 			let result = await Promise.all(dataNilai.map(async (str) => {
 				let hasil = JSON.parse(str.dataNilai)
 				let hasil2 = JSON.parse(str.dataKehadiran)
-				let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+				let semester = cms_setting.semester.label.toLowerCase()
 
 				return {
 					idUser: str.idUser,
@@ -2218,8 +2780,8 @@ function getPenilaian (models) {
 
 			return OK(res, {
 				dataSiswaSiswi: result,
-				jumlahTugas: dataJadwal ? dataJadwal.jumlahTugas : '0',
-				kkm: dataJadwal ? dataJadwal.kkm : cms_setting.kkm,
+				jumlahTugas: dataJadwal?.jumlahTugas || '0',
+				kkm: dataJadwal?.kkm || cms_setting?.kkm,
 			})
 		} catch (err) {
 			return NOT_FOUND(res, err.message)
@@ -2278,6 +2840,20 @@ function postPenilaian (models) {
 					dataKoreksiNilai: JSON.stringify(obj),
 				}
 				await models.Nilai.update(kirimdata, { where: { idUser: body.idUser, mapel: body.mapel } })
+			}else if(body.jenis === 'resetkoreksi'){
+				kirimdata = {
+					dataKoreksiNilai: JSON.stringify([
+						{
+							semester: 'ganjil',
+							koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: { dataessay: [], total: 0 } }
+						},
+						{
+							semester: 'genap',
+							koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: { dataessay: [], total: 0 } }
+						},
+					]),
+				}
+				await models.Nilai.update(kirimdata, { where: { idUser: body.idUser, mapel: body.mapel } })
 			}
 			
 			return OK(res, body)
@@ -2285,6 +2861,200 @@ function postPenilaian (models) {
 			return NOT_FOUND(res, err.message)
 		}
 	}
+}
+
+function getJadwalExamID (models) {	
+	return async (req, res, next) => {
+    const { idJadwalExam } = req.params
+	  try {
+			const { userID } = req.JWTDecoded
+			const dataSiswaSiswi = await models.User.findOne({
+				where: { idUser: userID },
+				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
+				include: [
+					{ 
+						model: models.UserDetail,
+					},
+				],
+			});
+			const dataExam = await models.JadwalExam.findOne({ where: { idJadwalExam: idJadwalExam, status: true } });
+			let kelasSplit = dataExam.dataValues.kelas.split('-')[0]
+			let limitSoal = JSON.parse(dataExam.dataValues.limitSoal)
+			let kumpulanKodeSoal = JSON.parse(dataExam.dataValues.kumpulanKodeSoal)
+			const dataMapel = await models.Mengajar.findOne({ where: { kode: dataExam.dataValues.mapel } });  
+			const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: dataExam.dataValues.kelas, mapel: dataExam.dataValues.mapel, status: true } });
+			const dataQuestionExamPG = await models.QuestionExam.findAll({ where: { kode: kumpulanKodeSoal.pilihanganda, mapel: dataExam.dataValues.mapel, kelas: kelasSplit, statusAktif: true } });
+			const dataQuestionExamESSAY = await models.QuestionExam.findAll({ where: { kode: kumpulanKodeSoal.essay, mapel: dataExam.dataValues.mapel, kelas: kelasSplit, statusAktif: true } });
+			const dataQuestionExamJODOH = await models.QuestionExam.findAll({ where: { kode: kumpulanKodeSoal.menjodohkan, mapel: dataExam.dataValues.mapel, kelas: kelasSplit, statusAktif: true } });
+			const dataQuestionExamBS = await models.QuestionExam.findAll({ where: { kode: kumpulanKodeSoal.benarsalah, mapel: dataExam.dataValues.mapel, kelas: kelasSplit, statusAktif: true } });
+			let pilihanganda = [], essay = [], menjodohkan = [], benarsalah = [], gabungPilihanMenjodohkan = []
+			await Promise.all(dataQuestionExamPG.map(val => {
+				pilihanganda.push({
+					...val.dataValues,
+					kunci: null,
+					pertanyaan: JSON.parse(val.dataValues.pertanyaan),
+					pilihan: JSON.parse(val.dataValues.pilihan),
+				})
+			}))
+			await Promise.all(dataQuestionExamESSAY.map(val => {
+				essay.push({
+					...val.dataValues,
+					kunci: null,
+					pertanyaan: JSON.parse(val.dataValues.pertanyaan),
+				})
+			}))
+			await Promise.all(dataQuestionExamJODOH.map(val => {
+				gabungPilihanMenjodohkan.push(JSON.parse(val.dataValues.pilihan)[0])
+			}))
+			let sufflePilihanMenjodohkan = shuffleArray(gabungPilihanMenjodohkan)
+			await Promise.all(dataQuestionExamJODOH.map(val => {
+				menjodohkan.push({
+					...val.dataValues,
+					kunci: null,
+					pertanyaan: JSON.parse(val.dataValues.pertanyaan),
+					pilihan: sufflePilihanMenjodohkan,
+				})
+			}))
+			await Promise.all(dataQuestionExamBS.map(val => {
+				benarsalah.push({
+					...val.dataValues,
+					kunci: null,
+					pertanyaan: JSON.parse(val.dataValues.pertanyaan),
+					pilihan: JSON.parse(val.dataValues.pilihan),
+				})
+			}))
+			let dataStruktural = null
+			if(dataJadwal) {
+				dataStruktural = await models.User.findOne({ where: { idUser: dataJadwal.dataValues.idUser } });
+			}
+			return OK(res, {
+        ...dataExam.dataValues,
+				idUser: dataSiswaSiswi.idUser,
+				nama: uppercaseLetterFirst2(dataSiswaSiswi.nama),
+				nomorInduk: dataSiswaSiswi.UserDetail.nomorInduk,
+				namaGuru: dataStruktural ? uppercaseLetterFirst2(dataStruktural.nama) : '-',
+        kodemapel: dataMapel.kode,
+        mapel: dataMapel.label,
+				dataQuestionExam: {
+					pilihanganda: shuffleArray(pilihanganda),
+					essay: shuffleArray(essay),
+					menjodohkan: shuffleArray(menjodohkan),
+					benarsalah: shuffleArray(benarsalah) }
+      })
+    } catch (err) {
+      return NOT_FOUND(res, err.message)
+	  }
+	}
+}
+
+function postJawabanExam (models) {
+  return async (req, res, next) => {
+		let body = req.body
+    try {
+			const check = await models.AnswerExam.count({ where: { idUser: body.idUser, mapel: body.mapel, kelas: body.kelas } });
+			if(check) return NOT_FOUND(res, "data sudah di gunakan !")
+			kirimdata = {
+				idAnswerExam: makeRandom(10),
+				idUser: body.idUser,
+				mapel: body.mapel,
+				kelas: body.kelas,
+				jawabanPG: body.jawabanPG,
+				jawabanEssay: body.jawabanEssay,
+				jawabanMenjodohkan: body.jawabanMenjodohkan,
+				jawabanBenarSalah: body.jawabanBenarSalah,
+			}
+			await models.AnswerExam.create(kirimdata)
+			return OK(res);
+    } catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function postKoreksiExam (models) {
+  return async (req, res, next) => {
+		let { mapel, kelas, idUser } = req.body
+    try {
+			const { userID, consumerType } = req.JWTDecoded
+			const dataMapel = await _mengajarOption({ models, kode: mapel })
+			const count = await models.AnswerExam.count({ where: { mapel, kelas, idUser } });
+			if(count <= 0) return NO_CONTENT(res)
+			const dataJawabanExam = await models.AnswerExam.findOne({
+				where: { mapel, kelas, idUser },
+				include: [
+					{ 
+						model: models.User,
+					},
+				],
+			});
+			let pilihanganda = [], essay = [], menjodohkan = [], benarsalah = [], gabungPilihanMenjodohkan = []
+			let jawabanpg = JSON.parse(dataJawabanExam.jawabanPG)
+			let jawabanessay = JSON.parse(dataJawabanExam.jawabanEssay)
+			let jawabanmenjodohkan = JSON.parse(dataJawabanExam.jawabanMenjodohkan)
+			let jawabanbenarsalah = JSON.parse(dataJawabanExam.jawabanBenarSalah)
+			await Promise.all(jawabanpg.map(async val => {
+				const dataQuestionExam = await models.QuestionExam.findOne({ where: { kode: val.kode, jenis: 'pilihan ganda' } })
+				pilihanganda.push({
+					...val,
+					kunciJawaban: dataQuestionExam.kunci,
+					pertanyaan: JSON.parse(dataQuestionExam.pertanyaan),
+					pilihan: JSON.parse(dataQuestionExam.pilihan),
+					kondisi: val.jawaban === dataQuestionExam.kunci,
+					point: val.jawaban === dataQuestionExam.kunci ? 1 : 0,
+				})
+			}))
+			await Promise.all(jawabanmenjodohkan.map(async val => {
+				const dataQuestionExam = await models.QuestionExam.findOne({ where: { kode: val.kode, jenis: 'menjodohkan' } })
+				gabungPilihanMenjodohkan.push(JSON.parse(dataQuestionExam.pilihan)[0])
+				menjodohkan.push({
+					...val,
+					kunciJawaban: dataQuestionExam.kunci,
+					pertanyaan: JSON.parse(dataQuestionExam.pertanyaan),
+					pilihan: gabungPilihanMenjodohkan,
+					kondisi: val.jawaban === dataQuestionExam.kunci,
+					point: val.jawaban === dataQuestionExam.kunci ? 1 : 0,
+				})
+			}))
+			await Promise.all(jawabanbenarsalah.map(async val => {
+				const dataQuestionExam = await models.QuestionExam.findOne({ where: { kode: val.kode, jenis: 'benar salah' } })
+				benarsalah.push({
+					...val,
+					kunciJawaban: dataQuestionExam.kunci,
+					pertanyaan: JSON.parse(dataQuestionExam.pertanyaan),
+					pilihan: JSON.parse(dataQuestionExam.pilihan),
+					kondisi: val.jawaban === dataQuestionExam.kunci,
+					point: val.jawaban === dataQuestionExam.kunci ? 1 : 0,
+				})
+			}))
+			const cms_setting = await dataCMSSettings({ models })
+			await Promise.all(jawabanessay.map(async val => {
+				const dataQuestionExam = await models.QuestionExam.findOne({ where: { kode: val.kode, jenis: 'essay' } })
+				const getNilai = await models.Nilai.findOne({ where: { idUser, mapel } })
+				let koreksi = JSON.parse(getNilai.dataKoreksiNilai)
+				let point = koreksi.filter(str => str.semester === cms_setting.semester.label.toLowerCase())[0]?.koreksi?.essay
+				essay.push({
+					...val,
+					pertanyaan: JSON.parse(dataQuestionExam.pertanyaan),
+					point: point?.dataessay.filter(str => str.kode == val.kode)[0]?.point || '0',
+				})
+			}))
+			return OK(res, {
+				idAnswerExam: dataJawabanExam.idAnswerExam,
+				kodeMapel: dataMapel[0]?.kode,
+				namaMapel: dataMapel[0]?.label,
+				jawabanPG: pilihanganda,
+				jawabanEssay: essay,
+				jawabanMenjodohkan: menjodohkan,
+				jawabanBenarSalah: benarsalah,
+				idUser: dataJawabanExam?.User?.idUser,
+				nama: dataJawabanExam?.User?.nama,
+			});
+    } catch (err) {
+			console.log(err);
+			return NOT_FOUND(res, err.message)
+    }
+  }  
 }
 
 function downloadTemplate (models) {
@@ -2423,135 +3193,135 @@ function downloadTemplate (models) {
 				
 				//Pil Agama
 				worksheetAgama.columns = [
-					{ header: "KODE", key: "kode", width: 15 },
+					{ header: "KODE", key: "value", width: 15 },
 					{ header: "LABEL", key: "label", width: 15 }
 				];
 				const figureColumnsAgama = [1, 2];
 				figureColumnsAgama.forEach((i) => {
 					worksheetAgama.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetAgama.addRows(await _allOption({ table: models.Agama }));
+				worksheetAgama.addRows(await _allOptionCms(models, { where: { kode: 'agama' } }));
 
 				//Pil Hobi
 				worksheetHobi.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsHobi = [1, 2];
 				figureColumnsHobi.forEach((i) => {
 					worksheetHobi.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetHobi.addRows(await _allOption({ table: models.Hobi }));
+				worksheetHobi.addRows(await _allOptionCms(models, { where: { kode: 'hobi' } }));
 
 				//Pil CitaCita
 				worksheetCitaCita.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsCitaCita = [1, 2];
 				figureColumnsCitaCita.forEach((i) => {
 					worksheetCitaCita.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetCitaCita.addRows(await _allOption({ table: models.CitaCita }));
+				worksheetCitaCita.addRows(await _allOptionCms(models, { where: { kode: 'citacita' } }));
 
 				//Pil JenjangSekolah
 				worksheetJenjangSekolah.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsJenjangSekolah = [1, 2];
 				figureColumnsJenjangSekolah.forEach((i) => {
 					worksheetJenjangSekolah.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetJenjangSekolah.addRows(await _allOption({ table: models.JenjangSekolah }));
+				worksheetJenjangSekolah.addRows(await _allOptionCms(models, { where: { kode: 'jenjangsekolah' } }));
 
 				//Pil StatusSekolah
 				worksheetStatusSekolah.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsStatusSekolah = [1, 2];
 				figureColumnsStatusSekolah.forEach((i) => {
 					worksheetStatusSekolah.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetStatusSekolah.addRows(await _allOption({ table: models.StatusSekolah }));
+				worksheetStatusSekolah.addRows(await _allOptionCms(models, { where: { kode: 'status_sekolah' } }));
 
 				//Pil StatusOrangTua
 				worksheetStatusOrangTua.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsStatusOrangTua = [1, 2];
 				figureColumnsStatusOrangTua.forEach((i) => {
 					worksheetStatusOrangTua.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetStatusOrangTua.addRows(await _allOption({ table: models.StatusOrangtua }));
+				worksheetStatusOrangTua.addRows(await _allOptionCms(models, { where: { kode: 'statusorangtua' } }));
 
 				//Pil Pendidikan
 				worksheetPendidikan.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsPendidikan = [1, 2];
 				figureColumnsPendidikan.forEach((i) => {
 					worksheetPendidikan.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetPendidikan.addRows(await _allOption({ table: models.Pendidikan }));
+				worksheetPendidikan.addRows(await _allOptionCms(models, { where: { kode: 'pendidikan' } }));
 
 				//Pil Pekerjaan
 				worksheetPekerjaan.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsPekerjaan = [1, 2];
 				figureColumnsPekerjaan.forEach((i) => {
 					worksheetPekerjaan.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetPekerjaan.addRows(await _allOption({ table: models.Pekerjaan }));
+				worksheetPekerjaan.addRows(await _allOptionCms(models, { where: { kode: 'pekerjaan' } }));
 
 				//Pil StatusTempatTinggal
 				worksheetStatusTempatTinggal.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsStatusTempatTinggal = [1, 2];
 				figureColumnsStatusTempatTinggal.forEach((i) => {
 					worksheetStatusTempatTinggal.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetStatusTempatTinggal.addRows(await _allOption({ table: models.StatusTempatTinggal }));
+				worksheetStatusTempatTinggal.addRows(await _allOptionCms(models, { where: { kode: 'statustempattinggal' } }));
 
 				//Pil JarakRumah
 				worksheetJarakRumah.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsJarakRumah = [1, 2];
 				figureColumnsJarakRumah.forEach((i) => {
 					worksheetJarakRumah.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetJarakRumah.addRows(await _allOption({ table: models.JarakRumah }));
+				worksheetJarakRumah.addRows(await _allOptionCms(models, { where: { kode: 'jarakrumah' } }));
 
 				//Pil AlatTransportasi
 				worksheetAlatTransportasi.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsAlatTransportasi = [1, 2];
 				figureColumnsAlatTransportasi.forEach((i) => {
 					worksheetAlatTransportasi.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetAlatTransportasi.addRows(await _allOption({ table: models.Transportasi }));
+				worksheetAlatTransportasi.addRows(await _allOptionCms(models, { where: { kode: 'transportasi' } }));
 
 				//Pil Penghasilan
 				worksheetPenghasilan.columns = [
-					{ header: "KODE", key: "kode", width: 10 },
+					{ header: "KODE", key: "value", width: 10 },
 					{ header: "LABEL", key: "label", width: 50 }
 				];
 				const figureColumnsPenghasilan = [1, 2];
 				figureColumnsPenghasilan.forEach((i) => {
 					worksheetPenghasilan.getColumn(i).alignment = { horizontal: "left" };
 				});
-				worksheetPenghasilan.addRows(await _allOption({ table: models.Penghasilan }));
+				worksheetPenghasilan.addRows(await _allOptionCms(models, { where: { kode: 'penghasilan' } }));
 
 				res.setHeader(
 					"Content-Disposition",
@@ -2746,7 +3516,7 @@ function downloadTemplateNilai (models) {
 				const getNilai = await models.Nilai.findOne({ where: { idUser: val.idUser, mapel } })
 				let nilai = JSON.parse(getNilai.dataNilai)
 				let kehadiran = JSON.parse(getNilai.dataKehadiran)
-				let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+				let semester = cms_setting.semester.label.toLowerCase()
 				let resNilai = nilai.filter(str => str.semester === semester)[0].nilai
 				let resKehadiran = kehadiran.filter(str => str.semester === semester)[0].kehadiran
 				result.push({
@@ -2843,14 +3613,14 @@ function downloadTemplateJadwalExam (models) {
 
 			//Pil Mapel
 			worksheetMapel.columns = [
-				{ header: "KODE", key: "kode", width: 10 },
+				{ header: "KODE", key: "value", width: 10 },
 				{ header: "LABEL", key: "label", width: 10 }
 			];
 			const figureColumnsMapel = [1, 2];
 			figureColumnsMapel.forEach((i) => {
 				worksheetMapel.getColumn(i).alignment = { horizontal: "left" };
 			});
-			worksheetMapel.addRows(await _allOption({ table: models.Mengajar }));
+			worksheetMapel.addRows(await _allOptionCms(models, { where: { kode: 'mengajar' } }));
 			
 			//Pil Kelas
 			worksheetKelas.columns = [
@@ -3083,11 +3853,11 @@ function importExcel (models) {
 									dataKoreksiNilai: JSON.stringify([
 										{
 											semester: 'ganjil',
-											koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: 0 }
+											koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: { dataessay: [], total: 0 } }
 										},
 										{
 											semester: 'genap',
-											koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: 0 }
+											koreksi: { pilihanganda: 0, menjodohkan: 0, benarsalah: 0, essay: { dataessay: [], total: 0 } }
 										},
 									]),
 								})
@@ -3176,135 +3946,135 @@ function importExcel (models) {
 						
 						//Pil Agama
 						worksheetAgama.columns = [
-							{ header: "KODE", key: "kode", width: 15 },
+							{ header: "KODE", key: "value", width: 15 },
 							{ header: "LABEL", key: "label", width: 15 }
 						];
 						const figureColumnsAgama = [1, 2];
 						figureColumnsAgama.forEach((i) => {
 							worksheetAgama.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetAgama.addRows(await _allOption({ table: models.Agama }));
+						worksheetAgama.addRows(await _allOptionCms(models, { where: { kode: 'agama' } }));
 	
 						//Pil Hobi
 						worksheetHobi.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsHobi = [1, 2];
 						figureColumnsHobi.forEach((i) => {
 							worksheetHobi.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetHobi.addRows(await _allOption({ table: models.Hobi }));
+						worksheetHobi.addRows(await _allOptionCms(models, { where: { kode: 'hobi' } }));
 	
 						//Pil CitaCita
 						worksheetCitaCita.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsCitaCita = [1, 2];
 						figureColumnsCitaCita.forEach((i) => {
 							worksheetCitaCita.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetCitaCita.addRows(await _allOption({ table: models.CitaCita }));
+						worksheetCitaCita.addRows(await _allOptionCms(models, { where: { kode: 'citacita' } }));
 	
 						//Pil JenjangSekolah
 						worksheetJenjangSekolah.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsJenjangSekolah = [1, 2];
 						figureColumnsJenjangSekolah.forEach((i) => {
 							worksheetJenjangSekolah.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetJenjangSekolah.addRows(await _allOption({ table: models.JenjangSekolah }));
+						worksheetJenjangSekolah.addRows(await _allOptionCms(models, { where: { kode: 'jenjangsekolah' } }));
 	
 						//Pil StatusSekolah
 						worksheetStatusSekolah.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsStatusSekolah = [1, 2];
 						figureColumnsStatusSekolah.forEach((i) => {
 							worksheetStatusSekolah.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetStatusSekolah.addRows(await _allOption({ table: models.StatusSekolah }));
+						worksheetStatusSekolah.addRows(await _allOptionCms(models, { where: { kode: 'status_sekolah' } }));
 	
 						//Pil StatusOrangTua
 						worksheetStatusOrangTua.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsStatusOrangTua = [1, 2];
 						figureColumnsStatusOrangTua.forEach((i) => {
 							worksheetStatusOrangTua.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetStatusOrangTua.addRows(await _allOption({ table: models.StatusOrangtua }));
+						worksheetStatusOrangTua.addRows(await _allOptionCms(models, { where: { kode: 'statusorangtua' } }));
 	
 						//Pil Pendidikan
 						worksheetPendidikan.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsPendidikan = [1, 2];
 						figureColumnsPendidikan.forEach((i) => {
 							worksheetPendidikan.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetPendidikan.addRows(await _allOption({ table: models.Pendidikan }));
+						worksheetPendidikan.addRows(await _allOptionCms(models, { where: { kode: 'pendidikan' } }));
 	
 						//Pil Pekerjaan
 						worksheetPekerjaan.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsPekerjaan = [1, 2];
 						figureColumnsPekerjaan.forEach((i) => {
 							worksheetPekerjaan.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetPekerjaan.addRows(await _allOption({ table: models.Pekerjaan }));
+						worksheetPekerjaan.addRows(await _allOptionCms(models, { where: { kode: 'pekerjaan' } }));
 	
 						//Pil StatusTempatTinggal
 						worksheetStatusTempatTinggal.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsStatusTempatTinggal = [1, 2];
 						figureColumnsStatusTempatTinggal.forEach((i) => {
 							worksheetStatusTempatTinggal.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetStatusTempatTinggal.addRows(await _allOption({ table: models.StatusTempatTinggal }));
+						worksheetStatusTempatTinggal.addRows(await _allOptionCms(models, { where: { kode: 'statustempattinggal' } }));
 	
 						//Pil JarakRumah
 						worksheetJarakRumah.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsJarakRumah = [1, 2];
 						figureColumnsJarakRumah.forEach((i) => {
 							worksheetJarakRumah.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetJarakRumah.addRows(await _allOption({ table: models.JarakRumah }));
+						worksheetJarakRumah.addRows(await _allOptionCms(models, { where: { kode: 'jarakrumah' } }));
 	
 						//Pil AlatTransportasi
 						worksheetAlatTransportasi.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsAlatTransportasi = [1, 2];
 						figureColumnsAlatTransportasi.forEach((i) => {
 							worksheetAlatTransportasi.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetAlatTransportasi.addRows(await _allOption({ table: models.Transportasi }));
+						worksheetAlatTransportasi.addRows(await _allOptionCms(models, { where: { kode: 'transportasi' } }));
 	
 						//Pil Penghasilan
 						worksheetPenghasilan.columns = [
-							{ header: "KODE", key: "kode", width: 10 },
+							{ header: "KODE", key: "value", width: 10 },
 							{ header: "LABEL", key: "label", width: 50 }
 						];
 						const figureColumnsPenghasilan = [1, 2];
 						figureColumnsPenghasilan.forEach((i) => {
 							worksheetPenghasilan.getColumn(i).alignment = { horizontal: "left" };
 						});
-						worksheetPenghasilan.addRows(await _allOption({ table: models.Penghasilan }));
+						worksheetPenghasilan.addRows(await _allOptionCms(models, { where: { kode: 'penghasilan' } }));
 	
 						res.setHeader(
 							"Content-Disposition",
@@ -3362,7 +4132,7 @@ function importExcel (models) {
 					});
 
 					const cms_setting = await dataCMSSettings({ models })
-					let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+					let semester = cms_setting.semester.label.toLowerCase()
 					await Promise.all(jsonData.map(async val => {
 						const dataNilai = await models.Nilai.findOne({ where: { idUser: val.idUser, mapel: body.mapel } });
 						let hasilNilai = JSON.parse(dataNilai.dataNilai)
@@ -3461,92 +4231,93 @@ function exportExcel (models) {
 				});
 	
 				const result = await Promise.all(dataSiswaSiswi.map(async val => {
-					let agama = await _agamaOption({ models, kode: val.UserDetail.agama })
-					let hobi = await _hobiOption({ models, kode: val.UserDetail.hobi })
-					let cita_cita = await _citacitaOption({ models, kode: val.UserDetail.citaCita })
-					let jenjang = await _jenjangsekolahOption({ models, kode: val.UserDetail.jenjang })
-					let status_sekolah = await _statussekolahOption({ models, kode: val.UserDetail.statusSekolah })
-					let kabkota_sekolah = await _wilayah2023Option({ models, kode: val.UserDetail.kabkotSekolah, bagian: 'provinsi' })
-					let status_ayah = await _statusortuOption({ models, kode: val.UserDetail.statusAyah })
-					let status_ibu = await _statusortuOption({ models, kode: val.UserDetail.statusIbu })
-					let pendidikan_ayah = await _pendidikanOption({ models, kode: val.UserDetail.pendidikanAyah })
-					let pendidikan_ibu = await _pendidikanOption({ models, kode: val.UserDetail.pendidikanIbu })
-					let pendidikan_wali = await _pendidikanOption({ models, kode: val.UserDetail.pendidikanWali })
-					let pekerjaan_ayah = await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanAyah })
-					let pekerjaan_ibu = await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanIbu })
-					let pekerjaan_wali = await _pekerjaanOption({ models, kode: val.UserDetail.pekerjaanWali })
-					let penghasilan = await _penghasilanOption({ models, kode: val.UserDetail.penghasilan })
-					let provinsi = await _wilayah2023Option({ models, kode: val.UserDetail.provinsi, bagian: 'provinsi' })
-					let kabkota = await _wilayah2023Option({ models, kode: val.UserDetail.kabKota, bagian: 'kabkota' })
-					let kecamatan = await _wilayah2023Option({ models, kode: val.UserDetail.kecamatan, bagian: 'kecamatan' })
-					let kelurahan = await _wilayah2023Option({ models, kode: val.UserDetail.kelurahan, bagian: 'keldes' })
-					let status_tempat_tinggal = await _statustempattinggalOption({ models, kode: val.UserDetail.statusTempatTinggal })
-					let jarak_rumah = await _jarakrumahOption({ models, kode: val.UserDetail.jarakRumah })
-					let transportasi = await _transportasiOption({ models, kode: val.UserDetail.transportasi })
-	
+					const { UserDetail } = val
+					let agama = await _allOptionCms(models, { where: { kode: 'agama' } }, { param: UserDetail?.agama })
+					let hobi = await _allOptionCms(models, { where: { kode: 'hobi' } }, { param: UserDetail?.hobi })
+					let cita_cita = await _allOptionCms(models, { where: { kode: 'citacita' } }, { param: UserDetail?.citaCita })
+					let jenjang = await _allOptionCms(models, { where: { kode: 'jenjangsekolah' } }, { param: UserDetail?.jenjang })
+					let status_sekolah = await _allOptionCms(models, { where: { kode: 'status_sekolah' } }, { param: UserDetail?.statusSekolah })
+					let kabkota_sekolah = await _wilayah2023Option({ models, kode: UserDetail?.kabkotSekolah, bagian: 'kabkota' })
+					let status_ayah = await _allOptionCms(models, { where: { kode: 'statusorangtua' } }, { param: UserDetail?.statusAyah })
+					let status_ibu = await _allOptionCms(models, { where: { kode: 'statusorangtua' } }, { param: UserDetail?.statusIbu })
+					let pendidikan_ayah = await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail?.pendidikanAyah })
+					let pendidikan_ibu = await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail?.pendidikanIbu })
+					let pendidikan_wali = await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail?.pendidikanWali })
+					let pekerjaan_ayah = await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail?.pekerjaanAyah })
+					let pekerjaan_ibu = await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail?.pekerjaanIbu })
+					let pekerjaan_wali = await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail?.pekerjaanWali })
+					let penghasilan = await _allOptionCms(models, { where: { kode: 'penghasilan' } }, { param: UserDetail?.penghasilan })
+					let provinsi = await _wilayah2023Option({ models, kode: UserDetail?.provinsi, bagian: 'provinsi' })
+					let kabkota = await _wilayah2023Option({ models, kode: UserDetail?.kabKota, bagian: 'kabkota' })
+					let kecamatan = await _wilayah2023Option({ models, kode: UserDetail?.kecamatan, bagian: 'kecamatan' })
+					let kelurahan = await _wilayah2023Option({ models, kode: UserDetail?.kelurahan, bagian: 'keldes' })
+					let status_tempat_tinggal = await _allOptionCms(models, { where: { kode: 'statustempattinggal' } }, { param: UserDetail?.statusTempatTinggal })
+					let jarak_rumah = await _allOptionCms(models, { where: { kode: 'jarakrumah' } }, { param: UserDetail?.jarakRumah })
+					let transportasi = await _allOptionCms(models, { where: { kode: 'transportasi' } }, { param: UserDetail?.transportasi })
+					
 					return {
-						idUser: val.idUser,
-						consumerType: val.consumerType,
-						nikSiswa: val.UserDetail.nikSiswa,
-						nomorInduk: val.UserDetail.nomorInduk,
-						namaRole: val.Role.namaRole,
-						nama: val.nama,
-						username: val.username,
-						email: val.email,
-						password: val.password,
-						kataSandi: val.kataSandi,
-						tempat: val.UserDetail.tempat,
-						tanggalLahir: val.UserDetail.tanggalLahir,
-						jenisKelamin: val.UserDetail.jenisKelamin,
-						agama: val.UserDetail.agama ? kategori === 'full' ? agama.label : agama.kode : null,
-						anakKe: val.UserDetail.anakKe,
-						jumlahSaudara: val.UserDetail.jumlahSaudara,
-						hobi: val.UserDetail.hobi ? kategori === 'full' ? hobi.label : hobi.kode : null,
-						citaCita: val.UserDetail.citaCita ? kategori === 'full' ? cita_cita.label : cita_cita.kode : null,
-						jenjang: val.UserDetail.jenjang ? kategori === 'full' ? jenjang.label : jenjang.kode : null,
-						statusSekolah: val.UserDetail.statusSekolah ? kategori === 'full' ? status_sekolah.label : status_sekolah.kode : null,
-						namaSekolah: val.UserDetail.namaSekolah,
-						npsn: val.UserDetail.npsn,
-						alamatSekolah: val.UserDetail.alamatSekolah,
-						kabkotSekolah: val.UserDetail.kabkotSekolah ? kategori === 'full' ? `${kabkota_sekolah.dataValues.jenisKabkota} ${kabkota_sekolah.dataValues.nama}` : kabkota_sekolah.kode : null,
-						noPesertaUN: val.UserDetail.noPesertaUN,
-						noSKHUN: val.UserDetail.noSKHUN,
-						noIjazah: val.UserDetail.noIjazah,
-						nilaiUN: val.UserDetail.nilaiUN,
-						noKK: val.UserDetail.noKK,
-						namaKK: val.UserDetail.namaKK,
-						namaAyah: val.UserDetail.namaAyah,
-						tahunAyah: val.UserDetail.tahunAyah,
-						statusAyah: val.UserDetail.statusAyah ? kategori === 'full' ? status_ayah.label : status_ayah.kode : null,
-						nikAyah: val.UserDetail.nikAyah,
-						pendidikanAyah: val.UserDetail.pendidikanAyah ? kategori === 'full' ? pendidikan_ayah.label : pendidikan_ayah.kode : null,
-						pekerjaanAyah: val.UserDetail.pekerjaanAyah ? kategori === 'full' ? pekerjaan_ayah.label : pekerjaan_ayah.kode : null,
-						telpAyah: val.UserDetail.telpAyah,
-						namaIbu: val.UserDetail.namaIbu,
-						tahunIbu: val.UserDetail.tahunIbu,
-						statusIbu: val.UserDetail.statusIbu ? kategori === 'full' ? status_ibu.label : status_ibu.kode : null,
-						nikIbu: val.UserDetail.nikIbu,
-						pendidikanIbu: val.UserDetail.pendidikanIbu ? kategori === 'full' ? pendidikan_ibu.label : pendidikan_ibu.kode : null,
-						pekerjaanIbu: val.UserDetail.pekerjaanIbu ? kategori === 'full' ? pekerjaan_ibu.label : pekerjaan_ibu.kode : null,
-						telpIbu: val.UserDetail.telpIbu,
-						namaWali: val.UserDetail.namaWali,
-						tahunWali: val.UserDetail.tahunWali,
-						nikWali: val.UserDetail.nikWali,
-						pendidikanWali: val.UserDetail.pendidikanWali ? kategori === 'full' ? pendidikan_wali.label : pendidikan_wali.kode : null,
-						pekerjaanWali: val.UserDetail.pekerjaanWali ? kategori === 'full' ? pekerjaan_wali.label : pekerjaan_wali.kode : null,
-						telpWali: val.UserDetail.telpWali,
-						penghasilan: val.UserDetail.penghasilan ? kategori === 'full' ? penghasilan.label : penghasilan.kode : null,
-						telp: val.UserDetail.telp,
-						alamat: val.UserDetail.alamat,
-						provinsi: val.UserDetail.provinsi ? kategori === 'full' ? provinsi.nama : provinsi.kode : null,
-						kabKota: val.UserDetail.kabKota ? kategori === 'full' ? `${kabkota.dataValues.jenisKabkota} ${kabkota.dataValues.nama}` : kabkota.kode : null,
-						kecamatan: val.UserDetail.kecamatan ? kategori === 'full' ? kecamatan.dataValues.nama : kecamatan.kode : null,
-						kelurahan: val.UserDetail.kelurahan ? kategori === 'full' ? `${kelurahan.dataValues.jenisKabkota} ${kelurahan.dataValues.nama}` : kelurahan.kode : null,
-						kodePos: val.UserDetail.kodePos,
-						kelas: val.UserDetail.kelas,
-						statusTempatTinggal: val.UserDetail.statusTempatTinggal ? kategori === 'full' ? status_tempat_tinggal.label : status_tempat_tinggal.kode : null,
-						jarakRumah: val.UserDetail.jarakRumah ? kategori === 'full' ? jarak_rumah.label : jarak_rumah.kode : null,
-						transportasi: val.UserDetail.transportasi ? kategori === 'full' ? transportasi.label : transportasi.kode : null,
+						idUser: val?.idUser,
+						consumerType: val?.consumerType,
+						nikSiswa: UserDetail?.nikSiswa,
+						nomorInduk: UserDetail?.nomorInduk,
+						namaRole: val?.Role.namaRole,
+						nama: val?.nama,
+						username: val?.username,
+						email: val?.email,
+						password: val?.password,
+						kataSandi: val?.kataSandi,
+						tempat: UserDetail?.tempat,
+						tanggalLahir: UserDetail?.tanggalLahir,
+						jenisKelamin: UserDetail?.jenisKelamin,
+						agama: UserDetail?.agama ? kategori === 'full' ? agama?.label : agama?.value : null,
+						anakKe: UserDetail?.anakKe,
+						jumlahSaudara: UserDetail?.jumlahSaudara,
+						hobi: UserDetail?.hobi ? kategori === 'full' ? hobi?.label : hobi?.value : null,
+						citaCita: UserDetail?.citaCita ? kategori === 'full' ? cita_cita?.label : cita_cita?.value : null,
+						jenjang: UserDetail?.jenjang ? kategori === 'full' ? jenjang?.label : jenjang?.value : null,
+						statusSekolah: UserDetail?.statusSekolah ? kategori === 'full' ? status_sekolah?.label : status_sekolah?.value : null,
+						namaSekolah: UserDetail?.namaSekolah,
+						npsn: UserDetail?.npsn,
+						alamatSekolah: UserDetail?.alamatSekolah,
+						kabkotSekolah: UserDetail?.kabkotSekolah ? kategori === 'full' ? `${kabkota_sekolah?.jenisKabKota} ${kabkota_sekolah?.nama}` : kabkota_sekolah?.kode : null,
+						noPesertaUN: UserDetail?.noPesertaUN,
+						noSKHUN: UserDetail?.noSKHUN,
+						noIjazah: UserDetail?.noIjazah,
+						nilaiUN: UserDetail?.nilaiUN,
+						noKK: UserDetail?.noKK,
+						namaKK: UserDetail?.namaKK,
+						namaAyah: UserDetail?.namaAyah,
+						tahunAyah: UserDetail?.tahunAyah,
+						statusAyah: UserDetail?.statusAyah ? kategori === 'full' ? status_ayah?.label : status_ayah?.value : null,
+						nikAyah: UserDetail?.nikAyah,
+						pendidikanAyah: UserDetail?.pendidikanAyah ? kategori === 'full' ? pendidikan_ayah?.label : pendidikan_ayah?.value : null,
+						pekerjaanAyah: UserDetail?.pekerjaanAyah ? kategori === 'full' ? pekerjaan_ayah?.label : pekerjaan_ayah?.value : null,
+						telpAyah: UserDetail?.telpAyah,
+						namaIbu: UserDetail?.namaIbu,
+						tahunIbu: UserDetail?.tahunIbu,
+						statusIbu: UserDetail?.statusIbu ? kategori === 'full' ? status_ibu?.label : status_ibu?.value : null,
+						nikIbu: UserDetail?.nikIbu,
+						pendidikanIbu: UserDetail?.pendidikanIbu ? kategori === 'full' ? pendidikan_ibu?.label : pendidikan_ibu?.value : null,
+						pekerjaanIbu: UserDetail?.pekerjaanIbu ? kategori === 'full' ? pekerjaan_ibu?.label : pekerjaan_ibu?.value : null,
+						telpIbu: UserDetail?.telpIbu,
+						namaWali: UserDetail?.namaWali,
+						tahunWali: UserDetail?.tahunWali,
+						nikWali: UserDetail?.nikWali,
+						pendidikanWali: UserDetail?.pendidikanWali ? kategori === 'full' ? pendidikan_wali?.label : pendidikan_wali?.value : null,
+						pekerjaanWali: UserDetail?.pekerjaanWali ? kategori === 'full' ? pekerjaan_wali?.label : pekerjaan_wali?.value : null,
+						telpWali: UserDetail?.telpWali,
+						penghasilan: UserDetail?.penghasilan ? kategori === 'full' ? penghasilan?.label : penghasilan?.value : null,
+						telp: UserDetail?.telp,
+						alamat: UserDetail?.alamat,
+						provinsi: UserDetail?.provinsi ? kategori === 'full' ? provinsi?.nama : provinsi?.kode : null,
+						kabKota: UserDetail?.kabKota ? kategori === 'full' ? `${kabkota?.jenisKabKota} ${kabkota?.nama}` : kabkota?.kode : null,
+						kecamatan: UserDetail?.kecamatan ? kategori === 'full' ? kecamatan?.nama : kecamatan?.kode : null,
+						kelurahan: UserDetail?.kelurahan ? kategori === 'full' ? `${kelurahan?.jenisKelDes} ${kelurahan?.nama}` : kelurahan?.kode : null,
+						kodePos: UserDetail?.kodePos,
+						kelas: UserDetail?.kelas,
+						statusTempatTinggal: UserDetail?.statusTempatTinggal ? kategori === 'full' ? status_tempat_tinggal?.label : status_tempat_tinggal?.value : null,
+						jarakRumah: UserDetail?.jarakRumah ? kategori === 'full' ? jarak_rumah?.label : jarak_rumah?.value : null,
+						transportasi: UserDetail?.transportasi ? kategori === 'full' ? transportasi?.label : transportasi?.value : null,
 					}
 				}))
 	
@@ -3567,135 +4338,135 @@ function exportExcel (models) {
 
 					//Pil Agama
 					worksheetAgama.columns = [
-						{ header: "KODE", key: "kode", width: 15 },
+						{ header: "KODE", key: "value", width: 15 },
 						{ header: "LABEL", key: "label", width: 15 }
 					];
 					const figureColumnsAgama = [1, 2];
 					figureColumnsAgama.forEach((i) => {
 						worksheetAgama.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetAgama.addRows(await _allOption({ table: models.Agama }));
+					worksheetAgama.addRows(await _allOptionCms(models, { where: { kode: 'agama' } }));
 
 					//Pil Hobi
 					worksheetHobi.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsHobi = [1, 2];
 					figureColumnsHobi.forEach((i) => {
 						worksheetHobi.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetHobi.addRows(await _allOption({ table: models.Hobi }));
+					worksheetHobi.addRows(await _allOptionCms(models, { where: { kode: 'hobi' } }));
 
 					//Pil CitaCita
 					worksheetCitaCita.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsCitaCita = [1, 2];
 					figureColumnsCitaCita.forEach((i) => {
 						worksheetCitaCita.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetCitaCita.addRows(await _allOption({ table: models.CitaCita }));
+					worksheetCitaCita.addRows(await _allOptionCms(models, { where: { kode: 'citacita' } }));
 
 					//Pil JenjangSekolah
 					worksheetJenjangSekolah.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsJenjangSekolah = [1, 2];
 					figureColumnsJenjangSekolah.forEach((i) => {
 						worksheetJenjangSekolah.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetJenjangSekolah.addRows(await _allOption({ table: models.JenjangSekolah }));
+					worksheetJenjangSekolah.addRows(await _allOptionCms(models, { where: { kode: 'jenjangsekolah' } }));
 
 					//Pil StatusSekolah
 					worksheetStatusSekolah.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsStatusSekolah = [1, 2];
 					figureColumnsStatusSekolah.forEach((i) => {
 						worksheetStatusSekolah.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetStatusSekolah.addRows(await _allOption({ table: models.StatusSekolah }));
+					worksheetStatusSekolah.addRows(await _allOptionCms(models, { where: { kode: 'status_sekolah' } }));
 
 					//Pil StatusOrangTua
 					worksheetStatusOrangTua.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsStatusOrangTua = [1, 2];
 					figureColumnsStatusOrangTua.forEach((i) => {
 						worksheetStatusOrangTua.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetStatusOrangTua.addRows(await _allOption({ table: models.StatusOrangtua }));
+					worksheetStatusOrangTua.addRows(await _allOptionCms(models, { where: { kode: 'statusorangtua' } }));
 
 					//Pil Pendidikan
 					worksheetPendidikan.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsPendidikan = [1, 2];
 					figureColumnsPendidikan.forEach((i) => {
 						worksheetPendidikan.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetPendidikan.addRows(await _allOption({ table: models.Pendidikan }));
+					worksheetPendidikan.addRows(await _allOptionCms(models, { where: { kode: 'pendidikan' } }));
 
 					//Pil Pekerjaan
 					worksheetPekerjaan.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsPekerjaan = [1, 2];
 					figureColumnsPekerjaan.forEach((i) => {
 						worksheetPekerjaan.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetPekerjaan.addRows(await _allOption({ table: models.Pekerjaan }));
+					worksheetPekerjaan.addRows(await _allOptionCms(models, { where: { kode: 'pekerjaan' } }));
 
 					//Pil StatusTempatTinggal
 					worksheetStatusTempatTinggal.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsStatusTempatTinggal = [1, 2];
 					figureColumnsStatusTempatTinggal.forEach((i) => {
 						worksheetStatusTempatTinggal.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetStatusTempatTinggal.addRows(await _allOption({ table: models.StatusTempatTinggal }));
+					worksheetStatusTempatTinggal.addRows(await _allOptionCms(models, { where: { kode: 'statustempattinggal' } }));
 
 					//Pil JarakRumah
 					worksheetJarakRumah.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsJarakRumah = [1, 2];
 					figureColumnsJarakRumah.forEach((i) => {
 						worksheetJarakRumah.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetJarakRumah.addRows(await _allOption({ table: models.JarakRumah }));
+					worksheetJarakRumah.addRows(await _allOptionCms(models, { where: { kode: 'jarakrumah' } }));
 
 					//Pil AlatTransportasi
 					worksheetAlatTransportasi.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsAlatTransportasi = [1, 2];
 					figureColumnsAlatTransportasi.forEach((i) => {
 						worksheetAlatTransportasi.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetAlatTransportasi.addRows(await _allOption({ table: models.Transportasi }));
+					worksheetAlatTransportasi.addRows(await _allOptionCms(models, { where: { kode: 'transportasi' } }));
 
 					//Pil Penghasilan
 					worksheetPenghasilan.columns = [
-						{ header: "KODE", key: "kode", width: 10 },
+						{ header: "KODE", key: "value", width: 10 },
 						{ header: "LABEL", key: "label", width: 50 }
 					];
 					const figureColumnsPenghasilan = [1, 2];
 					figureColumnsPenghasilan.forEach((i) => {
 						worksheetPenghasilan.getColumn(i).alignment = { horizontal: "left" };
 					});
-					worksheetPenghasilan.addRows(await _allOption({ table: models.Penghasilan }));
+					worksheetPenghasilan.addRows(await _allOptionCms(models, { where: { kode: 'penghasilan' } }));
 				}
 
 				//Data Siswa
@@ -3801,118 +4572,119 @@ function pdfCreate (models) {
 					['createdAt', 'DESC'],
 				],
 			});
-			
-			let agama = await _agamaOption({ models, kode: dataSiswaSiswi.UserDetail.agama })
-			let hobi = await _hobiOption({ models, kode: dataSiswaSiswi.UserDetail.hobi })
-			let cita_cita = await _citacitaOption({ models, kode: dataSiswaSiswi.UserDetail.citaCita })
-			let jenjang = await _jenjangsekolahOption({ models, kode: dataSiswaSiswi.UserDetail.jenjang })
-			let status_sekolah = await _statussekolahOption({ models, kode: dataSiswaSiswi.UserDetail.statusSekolah })
-			let kabkota_sekolah = await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.kabkotSekolah, bagian: 'kabkota' })
-			let status_ayah = await _statusortuOption({ models, kode: dataSiswaSiswi.UserDetail.statusAyah })
-			let status_ibu = await _statusortuOption({ models, kode: dataSiswaSiswi.UserDetail.statusIbu })
-			let pendidikan_ayah = await _pendidikanOption({ models, kode: dataSiswaSiswi.UserDetail.pendidikanAyah })
-			let pendidikan_ibu = await _pendidikanOption({ models, kode: dataSiswaSiswi.UserDetail.pendidikanIbu })
-			let pendidikan_wali = await _pendidikanOption({ models, kode: dataSiswaSiswi.UserDetail.pendidikanWali })
-			let pekerjaan_ayah = await _pekerjaanOption({ models, kode: dataSiswaSiswi.UserDetail.pekerjaanAyah })
-			let pekerjaan_ibu = await _pekerjaanOption({ models, kode: dataSiswaSiswi.UserDetail.pekerjaanIbu })
-			let pekerjaan_wali = await _pekerjaanOption({ models, kode: dataSiswaSiswi.UserDetail.pekerjaanWali })
-			let penghasilan = await _penghasilanOption({ models, kode: dataSiswaSiswi.UserDetail.penghasilan })
-			let provinsi = await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.provinsi, bagian: 'provinsi' })
-			let kabkota = await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.kabKota, bagian: 'kabkota' })
-			let kecamatan = await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.kecamatan, bagian: 'kecamatan' })
-			let kelurahan = await _wilayah2023Option({ models, kode: dataSiswaSiswi.UserDetail.kelurahan, bagian: 'keldes' })
-			let status_tempat_tinggal = await _statustempattinggalOption({ models, kode: dataSiswaSiswi.UserDetail.statusTempatTinggal })
-			let jarak_rumah = await _jarakrumahOption({ models, kode: dataSiswaSiswi.UserDetail.jarakRumah })
-			let transportasi = await _transportasiOption({ models, kode: dataSiswaSiswi.UserDetail.transportasi })
+
+			const { UserDetail } = dataSiswaSiswi
+			let agama = await _allOptionCms(models, { where: { kode: 'agama' } }, { param: UserDetail?.agama })
+			let hobi = await _allOptionCms(models, { where: { kode: 'hobi' } }, { param: UserDetail?.hobi })
+			let cita_cita = await _allOptionCms(models, { where: { kode: 'citacita' } }, { param: UserDetail?.citaCita })
+			let jenjang = await _allOptionCms(models, { where: { kode: 'jenjangsekolah' } }, { param: UserDetail?.jenjang })
+			let status_sekolah = await _allOptionCms(models, { where: { kode: 'status_sekolah' } }, { param: UserDetail?.statusSekolah })
+			let kabkota_sekolah = await _wilayah2023Option({ models, kode: UserDetail?.kabkotSekolah, bagian: 'kabkota' })
+			let status_ayah = await _allOptionCms(models, { where: { kode: 'statusorangtua' } }, { param: UserDetail?.statusAyah })
+			let status_ibu = await _allOptionCms(models, { where: { kode: 'statusorangtua' } }, { param: UserDetail?.statusIbu })
+			let pendidikan_ayah = await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail?.pendidikanAyah })
+			let pendidikan_ibu = await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail?.pendidikanIbu })
+			let pendidikan_wali = await _allOptionCms(models, { where: { kode: 'pendidikan' } }, { param: UserDetail?.pendidikanWali })
+			let pekerjaan_ayah = await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail?.pekerjaanAyah })
+			let pekerjaan_ibu = await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail?.pekerjaanIbu })
+			let pekerjaan_wali = await _allOptionCms(models, { where: { kode: 'pekerjaan' } }, { param: UserDetail?.pekerjaanWali })
+			let penghasilan = await _allOptionCms(models, { where: { kode: 'penghasilan' } }, { param: UserDetail?.penghasilan })
+			let provinsi = await _wilayah2023Option({ models, kode: UserDetail?.provinsi, bagian: 'provinsi' })
+			let kabkota = await _wilayah2023Option({ models, kode: UserDetail?.kabKota, bagian: 'kabkota' })
+			let kecamatan = await _wilayah2023Option({ models, kode: UserDetail?.kecamatan, bagian: 'kecamatan' })
+			let kelurahan = await _wilayah2023Option({ models, kode: UserDetail?.kelurahan, bagian: 'keldes' })
+			let status_tempat_tinggal = await _allOptionCms(models, { where: { kode: 'statustempattinggal' } }, { param: UserDetail?.statusTempatTinggal })
+			let jarak_rumah = await _allOptionCms(models, { where: { kode: 'jarakrumah' } }, { param: UserDetail?.jarakRumah })
+			let transportasi = await _allOptionCms(models, { where: { kode: 'transportasi' } }, { param: UserDetail?.transportasi })
 			const hasil = {
 				url: BASE_URL,
-				idUser: dataSiswaSiswi.idUser,
-				consumerType: dataSiswaSiswi.consumerType,
-				nikSiswa: dataSiswaSiswi.UserDetail.nikSiswa,
-				nomorInduk: dataSiswaSiswi.UserDetail.nomorInduk,
-				namaRole: dataSiswaSiswi.Role.namaRole,
-				nama: uppercaseLetterFirst2(dataSiswaSiswi.nama),
-				username: dataSiswaSiswi.username,
-				email: dataSiswaSiswi.email,
-				password: dataSiswaSiswi.password,
-				kataSandi: dataSiswaSiswi.kataSandi,
-				tempat: dataSiswaSiswi.UserDetail.tempat,
-				tanggalLahir: dateconvert(dataSiswaSiswi.UserDetail.tanggalLahir),
-				jenisKelamin: dataSiswaSiswi.UserDetail.jenisKelamin,
-				agama: dataSiswaSiswi.UserDetail.agama ? agama.label : null,
-				anakKe: dataSiswaSiswi.UserDetail.anakKe,
-				jumlahSaudara: dataSiswaSiswi.UserDetail.jumlahSaudara,
-				hobi: dataSiswaSiswi.UserDetail.hobi ? hobi.label : null,
-				citaCita: dataSiswaSiswi.UserDetail.citaCita ? cita_cita.label : null,
+				idUser: dataSiswaSiswi?.idUser,
+				consumerType: dataSiswaSiswi?.consumerType,
+				nikSiswa: UserDetail?.nikSiswa,
+				nomorInduk: UserDetail?.nomorInduk,
+				namaRole: dataSiswaSiswi?.Role.namaRole,
+				nama: uppercaseLetterFirst2(dataSiswaSiswi?.nama),
+				username: dataSiswaSiswi?.username,
+				email: dataSiswaSiswi?.email,
+				password: dataSiswaSiswi?.password,
+				kataSandi: dataSiswaSiswi?.kataSandi,
+				tempat: UserDetail?.tempat,
+				tanggalLahir: dateconvert(UserDetail?.tanggalLahir),
+				jenisKelamin: UserDetail?.jenisKelamin,
+				agama: agama?.label,
+				anakKe: UserDetail?.anakKe,
+				jumlahSaudara: UserDetail?.jumlahSaudara,
+				hobi: hobi?.label || null,
+				citaCita: cita_cita?.label || null,
 				// dataSekolahSebelumnya: {
-					jenjang: dataSiswaSiswi.UserDetail.jenjang ? jenjang.label : null,
-					statusSekolah: dataSiswaSiswi.UserDetail.statusSekolah ? status_sekolah.label : null,
-					namaSekolah: dataSiswaSiswi.UserDetail.namaSekolah,
-					npsn: dataSiswaSiswi.UserDetail.npsn,
-					alamatSekolah: dataSiswaSiswi.UserDetail.alamatSekolah,
-					kabkotSekolah: dataSiswaSiswi.UserDetail.kabkotSekolah ? `${kabkota_sekolah.dataValues.jenisKabKota} ${kabkota_sekolah.dataValues.nama}` : null,
-					noPesertaUN: dataSiswaSiswi.UserDetail.noPesertaUN,
-					noSKHUN: dataSiswaSiswi.UserDetail.noSKHUN,
-					noIjazah: dataSiswaSiswi.UserDetail.noIjazah,
-					nilaiUN: dataSiswaSiswi.UserDetail.nilaiUN,
+					jenjang: jenjang?.label || null,
+					statusSekolah: status_sekolah?.label || null,
+					namaSekolah: UserDetail?.namaSekolah,
+					npsn: UserDetail?.npsn,
+					alamatSekolah: UserDetail?.alamatSekolah,
+					kabkotSekolah: UserDetail?.kabkotSekolah ? `${kabkota_sekolah.jenisKabKota} ${kabkota_sekolah.nama}` : null,
+					noPesertaUN: UserDetail?.noPesertaUN,
+					noSKHUN: UserDetail?.noSKHUN,
+					noIjazah: UserDetail?.noIjazah,
+					nilaiUN: UserDetail?.nilaiUN,
 				// },
-				noKK: dataSiswaSiswi.UserDetail.noKK,
-				namaKK: dataSiswaSiswi.UserDetail.namaKK,
+				noKK: UserDetail?.noKK,
+				namaKK: UserDetail?.namaKK,
 				// dataOrangtua: {
 				// 	dataAyah: {
-						namaAyah: dataSiswaSiswi.UserDetail.namaAyah ? uppercaseLetterFirst2(dataSiswaSiswi.UserDetail.namaAyah) : '-',
-						tahunAyah: dataSiswaSiswi.UserDetail.tahunAyah,
-						statusAyah: dataSiswaSiswi.UserDetail.statusAyah ? status_ayah.label : null,
-						nikAyah: dataSiswaSiswi.UserDetail.nikAyah,
-						pendidikanAyah: dataSiswaSiswi.UserDetail.pendidikanAyah ? pendidikan_ayah.label : null,
-						pekerjaanAyah: dataSiswaSiswi.UserDetail.pekerjaanAyah ? pekerjaan_ayah.label : null,
-						telpAyah: dataSiswaSiswi.UserDetail.telpAyah,
+						namaAyah: uppercaseLetterFirst2(UserDetail?.namaAyah || '-'),
+						tahunAyah: UserDetail?.tahunAyah,
+						statusAyah: status_ayah?.label || null,
+						nikAyah: UserDetail?.nikAyah,
+						pendidikanAyah: pendidikan_ayah?.label || null,
+						pekerjaanAyah: pekerjaan_ayah?.label || null,
+						telpAyah: UserDetail?.telpAyah,
 					// },
 					// dataIbu: {
-						namaIbu: dataSiswaSiswi.UserDetail.namaIbu ? uppercaseLetterFirst2(dataSiswaSiswi.UserDetail.namaIbu) : '-',
-						tahunIbu: dataSiswaSiswi.UserDetail.tahunIbu,
-						statusIbu: dataSiswaSiswi.UserDetail.statusIbu ? status_ibu.label : null,
-						nikIbu: dataSiswaSiswi.UserDetail.nikIbu,
-						pendidikanIbu: dataSiswaSiswi.UserDetail.pendidikanIbu ? pendidikan_ibu.label : null,
-						pekerjaanIbu: dataSiswaSiswi.UserDetail.pekerjaanIbu ? pekerjaan_ibu.label : null,
-						telpIbu: dataSiswaSiswi.UserDetail.telpIbu,
+						namaIbu: uppercaseLetterFirst2(UserDetail?.namaIbu || '-'),
+						tahunIbu: UserDetail?.tahunIbu,
+						statusIbu: status_ibu?.label || null,
+						nikIbu: UserDetail?.nikIbu,
+						pendidikanIbu: pendidikan_ibu?.label || null,
+						pekerjaanIbu: pekerjaan_ibu?.label || null,
+						telpIbu: UserDetail?.telpIbu,
 					// },
 					// dataWali: {
-						namaWali: dataSiswaSiswi.UserDetail.namaWali ? uppercaseLetterFirst2(dataSiswaSiswi.UserDetail.namaWali) : '-',
-						tahunWali: dataSiswaSiswi.UserDetail.tahunWali,
-						nikWali: dataSiswaSiswi.UserDetail.nikWali,
-						pendidikanWali: dataSiswaSiswi.UserDetail.pendidikanWali ? pendidikan_wali.label : null,
-						pekerjaanWali: dataSiswaSiswi.UserDetail.pekerjaanWali ? pekerjaan_wali.label : null,
-						telpWali: dataSiswaSiswi.UserDetail.telpWali,
+						namaWali: uppercaseLetterFirst2(UserDetail?.namaWali || '-'),
+						tahunWali: UserDetail?.tahunWali,
+						nikWali: UserDetail?.nikWali,
+						pendidikanWali: pendidikan_wali?.label || null,
+						pekerjaanWali: pekerjaan_wali?.label || null,
+						telpWali: UserDetail?.telpWali,
 				// 	}
 				// },
-				penghasilan: dataSiswaSiswi.UserDetail.penghasilan ? penghasilan.label : null,
+				penghasilan: penghasilan?.label || null,
 				// dataAlamatOrangtua: {
-					telp: dataSiswaSiswi.UserDetail.telp,
-					alamat: dataSiswaSiswi.UserDetail.alamat,
-					provinsi: dataSiswaSiswi.UserDetail.provinsi ? `Provinsi ${provinsi.dataValues.nama}` : null,
-					kabKota: dataSiswaSiswi.UserDetail.kabKota ? `${kabkota.dataValues.jenisKabKota} ${kabkota.dataValues.nama}` : null,
-					kecamatan: dataSiswaSiswi.UserDetail.kecamatan ? `Kecamatan ${kecamatan.dataValues.nama}` : null,
-					kelurahan: dataSiswaSiswi.UserDetail.kelurahan ? `${kelurahan.dataValues.jenisKelDes} ${kelurahan.dataValues.nama}` : null,
-					kodePos: dataSiswaSiswi.UserDetail.kodePos,
+					telp: UserDetail?.telp,
+					alamat: UserDetail?.alamat,
+					provinsi: UserDetail?.provinsi ? `Provinsi ${provinsi.nama}` : null,
+					kabKota: UserDetail?.kabKota ? `${kabkota.jenisKabKota} ${kabkota.nama}` : null,
+					kecamatan: UserDetail?.kecamatan ? `Kecamatan ${kecamatan.nama}` : null,
+					kelurahan: UserDetail?.kelurahan ? `${kelurahan.jenisKelDes} ${kelurahan.nama}` : null,
+					kodePos: UserDetail?.kodePos,
 				// },
-				kelas: dataSiswaSiswi.UserDetail.kelas,
+				kelas: UserDetail?.kelas,
 				// dataLainnya: {
-					statusTempatTinggal: dataSiswaSiswi.UserDetail.statusTempatTinggal ? status_tempat_tinggal.label : null,
-					jarakRumah: dataSiswaSiswi.UserDetail.jarakRumah ? jarak_rumah.label : null,
-					transportasi: dataSiswaSiswi.UserDetail.transportasi ? transportasi.label : null,
+					statusTempatTinggal: status_tempat_tinggal?.label || null,
+					jarakRumah: jarak_rumah?.label || null,
+					transportasi: transportasi?.label || null,
 				// },
-				fotoProfil: dataSiswaSiswi.UserDetail.fotoProfil,
+				fotoProfil: UserDetail?.fotoProfil,
 				// berkas: {
-					fcIjazah: dataSiswaSiswi.UserDetail.fcIjazah,
-					fcSKHUN: dataSiswaSiswi.UserDetail.fcSKHUN,
-					fcKK: dataSiswaSiswi.UserDetail.fcKK,
-					fcKTPOrtu: dataSiswaSiswi.UserDetail.fcKTPOrtu,
-					fcAktaLahir: dataSiswaSiswi.UserDetail.fcAktaLahir,
-					fcSKL: dataSiswaSiswi.UserDetail.fcSKL,
+					fcIjazah: UserDetail?.fcIjazah,
+					fcSKHUN: UserDetail?.fcSKHUN,
+					fcKK: UserDetail?.fcKK,
+					fcKTPOrtu: UserDetail?.fcKTPOrtu,
+					fcAktaLahir: UserDetail?.fcAktaLahir,
+					fcSKL: UserDetail?.fcSKL,
 				// },
-				validasiAkun: dataSiswaSiswi.validasiAkun,
-				statusAktif: dataSiswaSiswi.statusAktif,
+				validasiAkun: dataSiswaSiswi?.validasiAkun,
+				statusAktif: dataSiswaSiswi?.statusAktif,
 			}
 			// return OK(res, hasil)
 			ejs.renderFile(path.join(__dirname, "../../src/views/viewSiswa.ejs"), { dataSiswa: hasil, cmsSetup: cms_setting }, (err, data) => {
@@ -4023,13 +4795,13 @@ function pdfCreateRaport (models) {
 				alfa: 0,
 				ijin: 0,
 			}
-			let semester = cms_setting.semester.value === 1 ? 'ganjil' : 'genap'
+			let semester = cms_setting.semester.label.toLowerCase()
 			let resultNilai = await Promise.all(dataNilai.map(async str => {
 				const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: dataSiswaSiswi.UserDetail.kelas, mapel: str.mapel, status: true } });
 				const mengajar = await models.Mengajar.findOne({ where: { kode: str.mapel } })
 				const { label } = mengajar.dataValues
-				let jumlahTugas = dataJadwal ? dataJadwal.jumlahTugas : 0
-				let kkm = dataJadwal ? dataJadwal.kkm : cms_setting.kkm
+				let jumlahTugas = dataJadwal?.jumlahTugas || 0
+				let kkm = dataJadwal?.kkm || cms_setting?.kkm
 				let dataStruktural = null
 				if(dataJadwal) {
 					dataStruktural = await models.User.findOne({ where: { idUser: dataJadwal.idUser } });
@@ -4177,702 +4949,6 @@ function listSiswaSiswi (models) {
 	}  
 }
 
-function getQuestionExam (models) {
-  return async (req, res, next) => {
-		let { page = 1, limit = 20, keyword } = req.query
-    let where = {}
-    try {
-			const { userID, consumerType } = req.JWTDecoded
-			const dataUser = await models.UserDetail.findOne({
-				where: { idUser: userID },
-				attributes: ["mengajarBidang", "mengajarKelas"]
-			})
-			let kelas = []
-			if(consumerType === 3){
-				let data = dataUser.mengajarKelas.split(', ')
-				data.map(val => {
-					let key = val.split('-')[0]
-					if(!_.includes(kelas, key)){
-						kelas.push(key)
-					}
-				})
-			}
-
-			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
-			const whereKey = keyword ? {
-				[Op.or]: [
-					{ mapel : { [Op.like]: `%${keyword}` }},
-					{ kelas : { [Op.like]: `%${keyword}` }},
-					{ jenis : { [Op.like]: `%${keyword}` }},
-				]
-			} : {}
-			
-			where = consumerType === 1 || consumerType === 2 ? whereKey : { ...whereKey, mapel: dataUser.mengajarBidang.split(', '), kelas: kelas }
-
-			const { count, rows: dataQuestionExam } = await models.QuestionExam.findAndCountAll({
-				where,
-				order: [
-					['createdAt', 'DESC'],
-				],
-				limit: parseInt(limit),
-				offset: OFFSET,
-			});
-			const getResult = await Promise.all(dataQuestionExam.map(async val => {
-				const dataUser = await models.User.findOne({where: { idUser: val.createBy },attributes: ["idUser", "nama"]})
-				const dataUserUpdate = await models.User.findOne({where: { idUser: val.updateBy },attributes: ["idUser", "nama"]})
-				const dataMapel = await _mengajarOption({ models, kode: val.mapel })
-				const pertanyaan = JSON.parse(val.pertanyaan)
-				const pilihan = val.pilihan ? JSON.parse(val.pilihan) : []
-				return {
-					idExam: val.idExam,
-					idUser: dataUser.idUser,
-					kode: val.kode,
-					kodemapel: dataMapel ? dataMapel[0].kode : '',
-					namamapel: dataMapel ? dataMapel[0].label : '',
-					kelas: val.kelas,
-					jenis: val.jenis,
-					pertanyaan: {
-						text: pertanyaan.text,
-						file: pertanyaan.file ? `${BASE_URL}berkas/${pertanyaan.file}` : null,
-					},
-					pilihan: val.jenis === 'pilihan ganda' || val.jenis === 'benar salah' ? 
-						pilihan.map(v => {
-							return {
-								jenis: v.jenis,
-								value: v.value,
-								text: v.text,
-								file: v.file ? `${BASE_URL}berkas/${v.file}` : null,
-							}
-						})
-					: {
-						...pilihan[0],
-						file: pilihan.length ? `${BASE_URL}berkas/${pilihan[0].file}` : null,
-					},
-					kunci: val.kunci,
-					statusAktif: val.statusAktif,
-					flag: val.deleteBy !== null || val.deletedAt !== null,
-					createBy: dataUser.nama,
-					updateBy: dataUserUpdate ? dataUserUpdate.nama : '-',
-					createdAt: val.createdAt,
-				}
-			}))
-
-			const responseData = buildMysqlResponseWithPagination(
-				getResult,
-				{ limit, page, total: count }
-			)
-
-			return OK(res, responseData);
-    } catch (err) {
-			console.log(err);
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function postQuestionExam (models) {
-  return async (req, res, next) => {
-		let body = req.body
-    try {
-			const { userID } = req.JWTDecoded
-			let kirimdata;
-			if(body.proses == 'ADD'){
-				kirimdata = {
-					mapel: body.mapel,
-					kelas: body.kelas,
-					kode: makeRandom(10),
-					jenis: body.jenis,
-					pertanyaan: body.enabledPertanyaan ? JSON.stringify(body.pertanyaan) : JSON.stringify({text: body.pertanyaan.text, file: null}),
-					pilihan: body.pilihan ? JSON.stringify(body.pilihan) : null,
-					kunci: body.kunci ? body.kunci : null,
-					statusAktif: 1,
-					createBy: userID,
-				}
-
-				await sequelizeInstance.transaction(async trx => {
-					await models.QuestionExam.create(kirimdata, { transaction: trx })
-					let pertanyaan = JSON.parse(kirimdata.pertanyaan)
-					let pilihan = kirimdata.pilihan ? JSON.parse(kirimdata.pilihan) : []
-					let jenis_pilihan = pilihan.length ? pilihan[0].jenis : pilihan
-					if(pertanyaan.file){
-						await models.TemporaryFile.update({ use: 1 }, { where: { file: pertanyaan.file } }, { transaction: trx })
-					}
-					if(jenis_pilihan === 'gambar' && (body.jenis === 'pilihan ganda' || body.jenis === 'menjodohkan')){
-						let filePilihan = []
-						pilihan.map(x => filePilihan.push(x.file))
-						await models.TemporaryFile.update({ use: 1 }, { where: { file: filePilihan } }, { transaction: trx })
-					}
-				})
-			}else if(body.proses == 'EDIT'){
-				kirimdata = {
-					mapel: body.mapel,
-					kelas: body.kelas,
-					jenis: body.jenis,
-					pertanyaan: body.enabledPertanyaan ? JSON.stringify(body.pertanyaan) : JSON.stringify({text: body.pertanyaan.text, file: null}),
-					pilihan: body.pilihan ? JSON.stringify(body.pilihan) : null,
-					kunci: body.kunci ? body.kunci : null,
-					updateBy: userID,
-				}
-				
-				await sequelizeInstance.transaction(async trx => {
-					const question = await models.QuestionExam.findOne({ where: { kode: body.kode } }, { transaction: trx })
-					const { pertanyaan, pilihan } = question.dataValues
-					let pertanyaanBody = JSON.parse(kirimdata.pertanyaan)
-					let pilihanBody = JSON.parse(kirimdata.pilihan)
-					let cekPertanyaan = JSON.parse(pertanyaan)
-					let cekPilihan = JSON.parse(pilihan)
-
-					if(cekPertanyaan.file !== pertanyaanBody.file){
-						await models.TemporaryFile.update({ use: 0 }, { where: { file: cekPertanyaan.file } }, { transaction: trx })
-						await models.TemporaryFile.update({ use: 1 }, { where: { file: pertanyaanBody.file } }, { transaction: trx })
-					}
-					if(cekPilihan){
-						cekPilihan.map(async x => {
-							if(x.jenis === 'gambar'){
-								await models.TemporaryFile.update({ use: 0 }, { where: { file: x.file } }, { transaction: trx })
-							}
-						})
-						let filePilihan = []
-						pilihanBody.map(x => filePilihan.push(x.file))
-						await models.TemporaryFile.update({ use: 1 }, { where: { file: filePilihan } }, { transaction: trx })
-					}
-					await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } }, { transaction: trx })
-				})
-			}else if(body.proses == 'DELETESOFT'){
-				kirimdata = {
-					statusAktif: 0,
-					deleteBy: userID,
-					deletedAt: new Date(),
-				}
-				await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } })	
-			}else if(body.proses == 'DELETEHARD'){
-				await sequelizeInstance.transaction(async trx => {
-					const dataQuestionExam = await models.QuestionExam.findOne({
-						where: { kode: body.kode }
-					}, { transaction: trx });
-					const { pertanyaan, pilihan } = dataQuestionExam.dataValues
-					let pertanyaanFile = JSON.parse(pertanyaan)
-					let pilihanFile = JSON.parse(pilihan)
-					if(pertanyaanFile.file){ 
-						fs.unlinkSync(path.join(__dirname, `../public/berkas/${pertanyaanFile.file}`)); 
-						await models.TemporaryFile.destroy({ where: { file: pertanyaanFile.file } }, { transaction: trx })
-					}
-					if(pilihanFile){
-						pilihanFile.map(async x => {
-							if(x.file){
-								fs.unlinkSync(path.join(__dirname, `../public/berkas/${x.file}`));
-								await models.TemporaryFile.destroy({ where: { file: x.file } }, { transaction: trx })
-							}
-						})
-					}
-					await models.QuestionExam.destroy({ where: { kode: body.kode } }, { transaction: trx })
-				})
-			}else if(body.proses == 'STATUSRECORD'){
-				kirimdata = { 
-					statusAktif: body.kondisi, 
-					updateBy: userID
-				}
-				await models.QuestionExam.update(kirimdata, { where: { kode: body.kode } })
-			}else{
-				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
-			}
-
-			return OK(res);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function getListPickExam (models) {
-  return async (req, res, next) => {
-		let { page = 1, limit = 20, keyword, jenis } = req.query
-    let where = {}
-    try {
-			const { userID, consumerType } = req.JWTDecoded
-			const dataUser = await models.UserDetail.findOne({
-				where: { idUser: userID },
-				attributes: ["mengajarBidang", "mengajarKelas"]
-			})
-			let kelas = []
-			if(consumerType === 3){
-				let data = dataUser.mengajarKelas.split(', ')
-				data.map(val => {
-					let key = val.split('-')[0]
-					if(!_.includes(kelas, key)){
-						kelas.push(key)
-					}
-				})
-			}
-
-			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
-			const whereKey = keyword ? {
-				[Op.or]: [
-					{ mapel : { [Op.like]: `%${keyword}` }},
-					{ kelas : { [Op.like]: `%${keyword}` }},
-					{ jenis : { [Op.like]: `%${keyword}` }},
-				],
-			} : {}
-			
-			where = consumerType === 1 || consumerType === 2 ? { ...whereKey, jenis } : { ...whereKey, jenis, mapel: dataUser.mengajarBidang.split(', '), kelas: kelas }
-
-			const { count, rows: dataQuestionExam } = await models.QuestionExam.findAndCountAll({
-				where,
-				order: [
-					['createdAt', 'DESC'],
-				],
-				limit: parseInt(limit),
-				offset: OFFSET,
-			});
-			const records = await Promise.all(dataQuestionExam.map(async val => {
-				const dataUser = await models.User.findOne({where: { idUser: val.createBy },attributes: ["idUser", "nama"]})
-				const dataUserUpdate = await models.User.findOne({where: { idUser: val.updateBy },attributes: ["idUser", "nama"]})
-				const dataMapel = await _mengajarOption({ models, kode: val.mapel })
-				const pertanyaan = JSON.parse(val.pertanyaan)
-				const pilihan = val.pilihan ? JSON.parse(val.pilihan) : []
-				return {
-					kode: val.kode,
-					idUser: dataUser.idUser,
-					kodemapel: dataMapel ? dataMapel[0].kode : '',
-					namamapel: dataMapel ? dataMapel[0].label : '',
-					kelas: val.kelas,
-					jenis: val.jenis,
-					pertanyaan: {
-						text: pertanyaan.text,
-						file: pertanyaan.file ? `${BASE_URL}berkas/${pertanyaan.file}` : null,
-					},
-					pilihan: val.jenis === 'pilihan ganda' || val.jenis === 'benar salah' ? 
-						pilihan.map(v => {
-							return {
-								jenis: v.jenis,
-								value: v.value,
-								text: v.text,
-								file: v.file ? `${BASE_URL}berkas/${v.file}` : null,
-							}
-						})
-					: {
-						...pilihan[0],
-						file: pilihan.length ? `${BASE_URL}berkas/${pilihan[0].file}` : null,
-					},
-					kunci: val.kunci,
-					createdAt: val.createdAt,
-					status: 'nonaktif',
-				}
-			}))
-			const arrangeResponse = () => {
-				const totalPage = Math.ceil(count / limit)
-				const hasNext = totalPage > parseInt(page, 10)
-				const pageSummary = { limit: Number(limit), page: Number(page), hasNext, lastID: '', total: count, totalPage }
-
-				if(count > 0){
-					pageSummary.lastID = dataQuestionExam[dataQuestionExam.length - 1].kode
-					return { records, pageSummary }
-				}
-				return { records: [], pageSummary }
-			}
-
-			return OK(res, arrangeResponse());
-    } catch (err) {
-			console.log(err);
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function postListPickExam (models) {
-  return async (req, res, next) => {
-		let body = req.body
-    try {
-			const dataJadwalExam = await models.JadwalExam.findOne({
-				where: { idJadwalExam: body.idJadwalExam },
-			});
-			let limitsoal = JSON.parse(dataJadwalExam.dataValues.limitSoal)
-			let kumpulankodesoal = JSON.parse(dataJadwalExam.dataValues.kumpulanKodeSoal)
-			let kode = JSON.parse(body.kode)
-			let limit = () => {
-				if(body.jenis === 'pilihan ganda'){
-					return { ...limitsoal, pilihanganda: kode.length }
-				}else if(body.jenis === 'menjodohkan'){
-					return { ...limitsoal, menjodohkan: kode.length }
-				}else if(body.jenis === 'benar salah'){
-					return { ...limitsoal, benarsalah: kode.length }
-				}else if(body.jenis === 'essay'){
-					return { ...limitsoal, essay: kode.length }
-				}
-			}
-			let kumpulankode = () => {
-				if(body.jenis === 'pilihan ganda'){
-					return { ...kumpulankodesoal, pilihanganda: getRandomArray(kode, kode.length) }
-				}else if(body.jenis === 'menjodohkan'){
-					return { ...kumpulankodesoal, menjodohkan: getRandomArray(kode, kode.length) }
-				}else if(body.jenis === 'benar salah'){
-					return { ...kumpulankodesoal, benarsalah: getRandomArray(kode, kode.length) }
-				}else if(body.jenis === 'essay'){
-					return { ...kumpulankodesoal, essay: getRandomArray(kode, kode.length) }
-				}
-			}
-			let kirimdata = {
-				limitSoal: JSON.stringify(limit()),
-				kumpulanKodeSoal: JSON.stringify(kumpulankode()),
-			}
-			await models.JadwalExam.update(kirimdata, { where: { idJadwalExam: body.idJadwalExam } })
-			return OK(res);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function getJadwalExam (models) {
-  return async (req, res, next) => {
-		let { page = 1, limit = 20, sort = '', mapel, kelas } = req.query
-    let where = {}
-    try {
-			// const { userID, consumerType } = req.JWTDecoded
-			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
-			if(mapel) {
-				where.mapel = mapel
-			}
-			if(kelas) {
-				where.kelas = kelas
-			}
-
-			const mappingSortField = [
-				'kelas',
-				['namamapel', sequelize.literal('`Mengajar.label`')],
-				'status',
-			]
-
-			const orders = buildOrderQuery(sort, mappingSortField)
-			
-			if(orders.length === 0){
-				orders.push(['createdAt', 'DESC'])
-			}
-
-			const { count, rows: dataJadwalExam } = await models.JadwalExam.findAndCountAll({
-				where,
-				include: [
-					{ 
-						model: models.Mengajar,
-					},
-				],
-				order: orders,
-				limit: parseInt(limit),
-				offset: OFFSET,
-			});
-			const getResult = await Promise.all(dataJadwalExam.map(async val => {
-				const date1 = dayjs(val.startDate);
-				const date2 = dayjs(val.endDate);
-				let minutes = date2.diff(date1, 'minutes');
-				const limitSoal = JSON.parse(val.limitSoal);
-				const kumpulanKodeSoal = JSON.parse(val.kumpulanKodeSoal);
-				return {
-					idJadwalExam: val.idJadwalExam,
-					kodemapel: val.Mengajar.kode,
-					namamapel: val.Mengajar.label,
-					kelas: val.kelas,
-					waktu: minutes,
-					startDate: val.startDate,
-					endDate: val.endDate,
-					limitSoal: {
-						pilihanganda: typeof limitSoal.pilihanganda === 'undefined' ? 0 : limitSoal.pilihanganda,
-						essay: typeof limitSoal.essay === 'undefined' ? 0 : limitSoal.essay,
-						menjodohkan: typeof limitSoal.menjodohkan === 'undefined' ? 0 : limitSoal.menjodohkan,
-						benarsalah: typeof limitSoal.benarsalah === 'undefined' ? 0 : limitSoal.benarsalah,
-					},
-					kumpulanKodeSoal: {
-						pilihanganda: typeof kumpulanKodeSoal.pilihanganda === 'undefined' ? [] : kumpulanKodeSoal.pilihanganda,
-						essay: typeof kumpulanKodeSoal.essay === 'undefined' ? [] : kumpulanKodeSoal.essay,
-						menjodohkan: typeof kumpulanKodeSoal.menjodohkan === 'undefined' ? [] : kumpulanKodeSoal.menjodohkan,
-						benarsalah: typeof kumpulanKodeSoal.benarsalah === 'undefined' ? [] : kumpulanKodeSoal.benarsalah,
-					},
-					status: val.status,
-					createdAt: val.createdAt,
-				}
-			}))
-
-			const responseData = buildMysqlResponseWithPagination(
-				getResult,
-				{ limit, page, total: count }
-			)
-
-			return OK(res, responseData);
-    } catch (err) {
-			console.log(err);
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function getJadwalExamID (models) {	
-	return async (req, res, next) => {
-    const { idJadwalExam } = req.params
-	  try {
-			const { userID } = req.JWTDecoded
-			const dataSiswaSiswi = await models.User.findOne({
-				where: { idUser: userID },
-				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
-				include: [
-					{ 
-						model: models.UserDetail,
-					},
-				],
-			});
-			const dataExam = await models.JadwalExam.findOne({ where: { idJadwalExam: idJadwalExam, status: true } });
-			let kelasSplit = dataExam.dataValues.kelas.split('-')[0]
-			let limitSoal = JSON.parse(dataExam.dataValues.limitSoal)
-			let kumpulanKodeSoal = JSON.parse(dataExam.dataValues.kumpulanKodeSoal)
-			const dataMapel = await models.Mengajar.findOne({ where: { kode: dataExam.dataValues.mapel } });  
-			const dataJadwal = await models.JadwalMengajar.findOne({ where: { kelas: dataExam.dataValues.kelas, mapel: dataExam.dataValues.mapel, status: true } });
-			const dataQuestionExamPG = await models.QuestionExam.findAll({ where: { kode: kumpulanKodeSoal.pilihanganda, mapel: dataExam.dataValues.mapel, kelas: kelasSplit, statusAktif: true } });
-			const dataQuestionExamESSAY = await models.QuestionExam.findAll({ where: { kode: kumpulanKodeSoal.essay, mapel: dataExam.dataValues.mapel, kelas: kelasSplit, statusAktif: true } });
-			const dataQuestionExamJODOH = await models.QuestionExam.findAll({ where: { kode: kumpulanKodeSoal.menjodohkan, mapel: dataExam.dataValues.mapel, kelas: kelasSplit, statusAktif: true } });
-			const dataQuestionExamBS = await models.QuestionExam.findAll({ where: { kode: kumpulanKodeSoal.benarsalah, mapel: dataExam.dataValues.mapel, kelas: kelasSplit, statusAktif: true } });
-			let pilihanganda = [], essay = [], menjodohkan = [], benarsalah = [], gabungPilihanMenjodohkan = []
-			await Promise.all(dataQuestionExamPG.map(val => {
-				pilihanganda.push({
-					...val.dataValues,
-					pertanyaan: JSON.parse(val.dataValues.pertanyaan),
-					pilihan: JSON.parse(val.dataValues.pilihan),
-				})
-			}))
-			await Promise.all(dataQuestionExamESSAY.map(val => {
-				essay.push({
-					...val.dataValues,
-					pertanyaan: JSON.parse(val.dataValues.pertanyaan),
-				})
-			}))
-			await Promise.all(dataQuestionExamJODOH.map(val => {
-				gabungPilihanMenjodohkan.push(JSON.parse(val.dataValues.pilihan)[0])
-			}))
-			let sufflePilihanMenjodohkan = shuffleArray(gabungPilihanMenjodohkan)
-			await Promise.all(dataQuestionExamJODOH.map(val => {
-				menjodohkan.push({
-					...val.dataValues,
-					pertanyaan: JSON.parse(val.dataValues.pertanyaan),
-					pilihan: sufflePilihanMenjodohkan,
-				})
-			}))
-			await Promise.all(dataQuestionExamBS.map(val => {
-				benarsalah.push({
-					...val.dataValues,
-					pertanyaan: JSON.parse(val.dataValues.pertanyaan),
-					pilihan: JSON.parse(val.dataValues.pilihan),
-				})
-			}))
-			let dataStruktural = null
-			if(dataJadwal) {
-				dataStruktural = await models.User.findOne({ where: { idUser: dataJadwal.dataValues.idUser } });
-			}
-			return OK(res, {
-        ...dataExam.dataValues,
-				idUser: dataSiswaSiswi.idUser,
-				nama: uppercaseLetterFirst2(dataSiswaSiswi.nama),
-				nomorInduk: dataSiswaSiswi.UserDetail.nomorInduk,
-				namaGuru: dataStruktural ? uppercaseLetterFirst2(dataStruktural.nama) : '-',
-        kodemapel: dataMapel.kode,
-        mapel: dataMapel.label,
-				dataQuestionExam: {
-					pilihanganda: shuffleArray(pilihanganda),
-					essay: shuffleArray(essay),
-					menjodohkan: shuffleArray(menjodohkan),
-					benarsalah: shuffleArray(benarsalah) }
-      })
-    } catch (err) {
-      return NOT_FOUND(res, err.message)
-	  }
-	}
-}
-
-function getRandomQuestion (models) {
-	return async (req, res, next) => {
-    const { mapel, kelas, limitSoal } = req.query
-	  try {
-			let limit_soal = JSON.parse(limitSoal)
-			const dataQuestionExam = await models.QuestionExam.findAll({
-				where: {
-					mapel: mapel,
-					kelas: kelas.split('-')[0],
-				},
-				attributes: ['kode', 'jenis'],
-			});
-
-			let pilihanganda = [], temppilihanganda = [], essay = [], tempessay = [], menjodohkan = [], tempmenjodohkan = [], benarsalah = [], tempbenarsalah = []
-			if(limit_soal.pilihanganda > 0){
-				dataQuestionExam.filter(x => { if(x.jenis === 'pilihan ganda') return temppilihanganda.push(x.dataValues.kode) })
-				pilihanganda = getRandomArray(temppilihanganda, limit_soal.pilihanganda)
-			}
-			if(limit_soal.essay > 0){
-				dataQuestionExam.filter(x => { if(x.jenis === 'essay') return tempessay.push(x.dataValues.kode) })
-				essay = getRandomArray(tempessay, limit_soal.essay)
-			}							
-			if(limit_soal.menjodohkan > 0){
-				dataQuestionExam.filter(x => { if(x.jenis === 'menjodohkan') return tempmenjodohkan.push(x.dataValues.kode) })
-				menjodohkan = getRandomArray(tempmenjodohkan, limit_soal.menjodohkan)
-			}							
-			if(limit_soal.benarsalah > 0){
-				dataQuestionExam.filter(x => { if(x.jenis === 'benar salah') return tempbenarsalah.push(x.dataValues.kode) })
-				benarsalah = getRandomArray(tempbenarsalah, limit_soal.benarsalah)
-			}					
-			return OK(res, { pilihanganda, essay, menjodohkan, benarsalah })
-    } catch (err) {
-      return NOT_FOUND(res, err.message)
-	  }
-	}
-}
-
-function postJadwalExam (models) {
-	return async (req, res, next) => {
-		  let body = req.body
-	  try {
-			  const { userID } = req.JWTDecoded
-			  let kirimdata;
-			  if(body.jenis == 'ADD'){
-				  kirimdata = {
-					  idJadwalExam: makeRandom(10),
-					  mapel: body.mapel,
-					  kelas: body.kelas,
-					  startDate: body.dateRange[0],
-					  endDate: body.dateRange[1],
-					  limitSoal: body.limitSoal,
-					  kumpulanKodeSoal: body.kumpulanKodeSoal,
-					  status: 1,
-				  }
-				  await models.JadwalExam.create(kirimdata)
-			  }else if(body.jenis == 'EDIT'){
-				  kirimdata = {
-					  mapel: body.mapel,
-					  kelas: body.kelas,
-					  startDate: body.dateRange[0],
-					  endDate: body.dateRange[1],
-						limitSoal: body.limitSoal,
-					  kumpulanKodeSoal: body.kumpulanKodeSoal,
-				  }
-				  await models.JadwalExam.update(kirimdata, { where: { idJadwalExam: body.idJadwalExam } })
-			  }else if(body.jenis == 'DELETE'){
-				  await models.JadwalExam.destroy({ where: { idJadwalExam: body.idJadwalExam } })	
-			  }else if(body.jenis == 'STATUSRECORD'){
-				  kirimdata = { 
-					  status: body.status, 
-					}
-				  await models.JadwalExam.update(kirimdata, { where: { idJadwalExam: body.idJadwalExam } })
-			  }else{
-				  return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
-			  }
-  
-			  return OK(res);
-	  } catch (err) {
-			  return NOT_FOUND(res, err.message)
-	  }
-	}  
-}
-
-function postJawabanExam (models) {
-  return async (req, res, next) => {
-		let body = req.body
-    try {
-			const check = await models.AnswerExam.count({ where: { idUser: body.idUser, mapel: body.mapel, kelas: body.kelas } });
-			if(check) return NOT_FOUND(res, "data sudah di gunakan !")
-			kirimdata = {
-				idAnswerExam: makeRandom(10),
-				idUser: body.idUser,
-				mapel: body.mapel,
-				kelas: body.kelas,
-				jawabanPG: body.jawabanPG,
-				jawabanEssay: body.jawabanEssay,
-				jawabanMenjodohkan: body.jawabanMenjodohkan,
-				jawabanBenarSalah: body.jawabanBenarSalah,
-			}
-			await models.AnswerExam.create(kirimdata)
-			return OK(res);
-    } catch (err) {
-			console.log(err);
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function postKoreksiExam (models) {
-  return async (req, res, next) => {
-		let { mapel, kelas, idUser } = req.body
-    try {
-			const { userID, consumerType } = req.JWTDecoded
-			const dataMapel = await _mengajarOption({ models, kode: mapel })
-			const count = await models.AnswerExam.count({ where: { mapel: mapel, kelas, idUser } });
-			if(count <= 0) return NO_CONTENT(res)
-			const dataJawabanExam = await models.AnswerExam.findOne({
-				where: { mapel: mapel, kelas, idUser },
-				include: [
-					{ 
-						model: models.User,
-					},
-				],
-			});
-			let pilihanganda = [], essay = [], menjodohkan = [], benarsalah = [], gabungPilihanMenjodohkan = []
-			let jawabanpg = JSON.parse(dataJawabanExam.jawabanPG)
-			let jawabanessay = JSON.parse(dataJawabanExam.jawabanEssay)
-			let jawabanmenjodohkan = JSON.parse(dataJawabanExam.jawabanMenjodohkan)
-			let jawabanbenarsalah = JSON.parse(dataJawabanExam.jawabanBenarSalah)
-			await Promise.all(jawabanpg.map(async val => {
-				const dataQuestionExam = await models.QuestionExam.findOne({ where: { kode: val.kode, jenis: 'pilihan ganda' } })
-				pilihanganda.push({
-					...val,
-					kunciJawaban: dataQuestionExam.kunci,
-					pertanyaan: JSON.parse(dataQuestionExam.pertanyaan),
-					pilihan: JSON.parse(dataQuestionExam.pilihan),
-					kondisi: val.jawaban === dataQuestionExam.kunci,
-					point: val.jawaban === dataQuestionExam.kunci ? 1 : 0,
-				})
-			}))
-			await Promise.all(jawabanmenjodohkan.map(async val => {
-				const dataQuestionExam = await models.QuestionExam.findOne({ where: { kode: val.kode, jenis: 'menjodohkan' } })
-				gabungPilihanMenjodohkan.push(JSON.parse(dataQuestionExam.pilihan)[0])
-				menjodohkan.push({
-					...val,
-					kunciJawaban: dataQuestionExam.kunci,
-					pertanyaan: JSON.parse(dataQuestionExam.pertanyaan),
-					pilihan: gabungPilihanMenjodohkan,
-					kondisi: val.jawaban === dataQuestionExam.kunci,
-					point: val.jawaban === dataQuestionExam.kunci ? 1 : 0,
-				})
-			}))
-			await Promise.all(jawabanbenarsalah.map(async val => {
-				const dataQuestionExam = await models.QuestionExam.findOne({ where: { kode: val.kode, jenis: 'benar salah' } })
-				benarsalah.push({
-					...val,
-					kunciJawaban: dataQuestionExam.kunci,
-					pertanyaan: JSON.parse(dataQuestionExam.pertanyaan),
-					pilihan: JSON.parse(dataQuestionExam.pilihan),
-					kondisi: val.jawaban === dataQuestionExam.kunci,
-					point: val.jawaban === dataQuestionExam.kunci ? 1 : 0,
-				})
-			}))
-			await Promise.all(jawabanessay.map(async val => {
-				const dataQuestionExam = await models.QuestionExam.findOne({ where: { kode: val.kode, jenis: 'essay' } })
-				essay.push({
-					...val,
-					pertanyaan: JSON.parse(dataQuestionExam.pertanyaan),
-					point: '0',
-				})
-			}))
-			return OK(res, {
-				idAnswerExam: dataJawabanExam.idAnswerExam,
-				kodeMapel: dataMapel[0]?.kode,
-				namaMapel: dataMapel[0]?.label,
-				jawabanPG: pilihanganda,
-				jawabanEssay: essay,
-				jawabanMenjodohkan: menjodohkan,
-				jawabanBenarSalah: benarsalah,
-				idUser: dataJawabanExam?.User?.idUser,
-				nama: dataJawabanExam?.User?.nama,
-			});
-    } catch (err) {
-			console.log(err);
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
 function unlinkFile (models) {
 	return async (req, res, next) => {
 		let { file, table, folder } = req.body
@@ -4894,134 +4970,135 @@ function testing (models) {
 		// let where = {}
     try {
 			// const { userID } = req.JWTDecoded
-			let hariArray = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
-			const dataKelas = await models.Kelas.findAll({ where: { status: true } })
-			let tambahJadwal = []
-			let result = await Promise.all(hariArray.map(async str => {
-				// if(untuk === 'admin'){
-				// 	where = { hari: str, status: true }
-				// }else{
-				// 	where = { idUser: userID, hari: str, status: true }
-				// }
+			// let hariArray = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+			// const dataKelas = await models.Kelas.findAll({ where: { status: true } })
+			// let tambahJadwal = []
+			// let result = await Promise.all(hariArray.map(async str => {
+			// 	// if(untuk === 'admin'){
+			// 	// 	where = { hari: str, status: true }
+			// 	// }else{
+			// 	// 	where = { idUser: userID, hari: str, status: true }
+			// 	// }
 
-				const dataJadwal = await models.JadwalMengajar.findAll({ 
-					where: { hari: str, status: true },
-					attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'hari', 'startTime', 'endTime'],
-					include: [
-						{ model: models.User, attributes: ['nama'] },
-						{ model: models.Mengajar, attributes: ['label', 'alias', 'color'] },
-					],
-				});
-				tambahJadwal = str !== 'Sabtu' ? [ ...dataJadwal, {
-					idJadwalMengajar: null,
-					idUser: null,
-					kelas: null,
-					hari: str,
-					startTime: '07:00:00',
-					endTime: '08:00:00',
-					User: { nama: 'ALL' },
-					Mengajar: { 
-						label: str === 'Senin' ? 'Upacara Bendera' : 'Bimbingan Konseling / Tadarus',
-						alias: str === 'Senin' ? 'Upacara Bendera' : 'Bimbingan Konseling / Tadarus',
-						color: '#e1e1f0'
-					}
-				},
-				{
-					idJadwalMengajar: null,
-					idUser: null,
-					kelas: null,
-					hari: str,
-					startTime: '09:30:00',
-					endTime: '10:00:00',
-					User: { nama: 'ALL' },
-					Mengajar: {
-						label: 'Istirahat',
-						alias: 'Istirahat',
-						color: '#e1e1f0'
-					}
-				},
-				{
-					idJadwalMengajar: null,
-					idUser: null,
-					kelas: null,
-					hari: str,
-					startTime: '11:30:00',
-					endTime: '12:30:00',
-					User: { nama: 'ALL' },
-					Mengajar: {
-						label: str === 'Jumat' ? 'Istirahat / Shalat Jumat' : 'Istirahat / Shalat Zuhur',
-						alias: str === 'Jumat' ? 'Istirahat / Shalat Jumat' : 'Istirahat / Shalat Zuhur',
-						color: '#e1e1f0'
-					}
-				}] : [ ...dataJadwal, {
-					idJadwalMengajar: null,
-					idUser: null,
-					kelas: null,
-					hari: str,
-					startTime: '08:00:00',
-					endTime: '15:00:00',
-					User: { nama: 'ALL' },
-					Mengajar: {
-						label: 'Ekstrakulikuler',
-						alias: 'Ekstrakulikuler',
-						color: '#e1e1f0'
-					}
-				}]
-				let record = _.groupBy(_.orderBy(tambahJadwal, ['startTime', 'kelas'], ['asc', 'asc']), 'startTime')
-				let kumpul = await Promise.all(Object.entries(record).map(val => {
-					let key = val[0]
-					let data = val[1]
-					let resdata = []
-					let waktu = ''
-					data.map(x => {
-						const { idJadwalMengajar, idUser, kelas, hari, startTime, endTime } = x
-						resdata.push({
-							idJadwalMengajar,
-							idUser,
-							namaGuru: x.User.nama,
-							mapel: x.Mengajar.label,
-							alias: x.Mengajar.alias,
-							color: x.Mengajar.color,
-							kelas,
-							// hari,
-							// startTime,
-							// endTime,
-						})
-						waktu = `${startTime} - ${endTime}`
-					})
-					return { waktu, jadwal: resdata }
-				}))
-				return { hari: str, dataJadwal: kumpul }
-			}))
+			// 	const dataJadwal = await models.JadwalMengajar.findAll({ 
+			// 		where: { hari: str, status: true },
+			// 		attributes: ['idJadwalMengajar', 'idUser', 'mapel', 'kelas', 'hari', 'startTime', 'endTime'],
+			// 		include: [
+			// 			{ model: models.User, attributes: ['nama'] },
+			// 			{ model: models.Mengajar, attributes: ['label', 'alias', 'color'] },
+			// 		],
+			// 	});
+			// 	tambahJadwal = str !== 'Sabtu' ? [ ...dataJadwal, {
+			// 		idJadwalMengajar: null,
+			// 		idUser: null,
+			// 		kelas: null,
+			// 		hari: str,
+			// 		startTime: '07:00:00',
+			// 		endTime: '08:00:00',
+			// 		User: { nama: 'ALL' },
+			// 		Mengajar: { 
+			// 			label: str === 'Senin' ? 'Upacara Bendera' : 'Bimbingan Konseling / Tadarus',
+			// 			alias: str === 'Senin' ? 'Upacara Bendera' : 'Bimbingan Konseling / Tadarus',
+			// 			color: '#e1e1f0'
+			// 		}
+			// 	},
+			// 	{
+			// 		idJadwalMengajar: null,
+			// 		idUser: null,
+			// 		kelas: null,
+			// 		hari: str,
+			// 		startTime: '09:30:00',
+			// 		endTime: '10:00:00',
+			// 		User: { nama: 'ALL' },
+			// 		Mengajar: {
+			// 			label: 'Istirahat',
+			// 			alias: 'Istirahat',
+			// 			color: '#e1e1f0'
+			// 		}
+			// 	},
+			// 	{
+			// 		idJadwalMengajar: null,
+			// 		idUser: null,
+			// 		kelas: null,
+			// 		hari: str,
+			// 		startTime: '11:30:00',
+			// 		endTime: '12:30:00',
+			// 		User: { nama: 'ALL' },
+			// 		Mengajar: {
+			// 			label: str === 'Jumat' ? 'Istirahat / Shalat Jumat' : 'Istirahat / Shalat Zuhur',
+			// 			alias: str === 'Jumat' ? 'Istirahat / Shalat Jumat' : 'Istirahat / Shalat Zuhur',
+			// 			color: '#e1e1f0'
+			// 		}
+			// 	}] : [ ...dataJadwal, {
+			// 		idJadwalMengajar: null,
+			// 		idUser: null,
+			// 		kelas: null,
+			// 		hari: str,
+			// 		startTime: '08:00:00',
+			// 		endTime: '15:00:00',
+			// 		User: { nama: 'ALL' },
+			// 		Mengajar: {
+			// 			label: 'Ekstrakulikuler',
+			// 			alias: 'Ekstrakulikuler',
+			// 			color: '#e1e1f0'
+			// 		}
+			// 	}]
+			// 	let record = _.groupBy(_.orderBy(tambahJadwal, ['startTime', 'kelas'], ['asc', 'asc']), 'startTime')
+			// 	let kumpul = await Promise.all(Object.entries(record).map(val => {
+			// 		let key = val[0]
+			// 		let data = val[1]
+			// 		let resdata = []
+			// 		let waktu = ''
+			// 		data.map(x => {
+			// 			const { idJadwalMengajar, idUser, kelas, hari, startTime, endTime } = x
+			// 			resdata.push({
+			// 				idJadwalMengajar,
+			// 				idUser,
+			// 				namaGuru: x.User.nama,
+			// 				mapel: x.Mengajar.label,
+			// 				alias: x.Mengajar.alias,
+			// 				color: x.Mengajar.color,
+			// 				kelas,
+			// 				// hari,
+			// 				// startTime,
+			// 				// endTime,
+			// 			})
+			// 			waktu = `${startTime} - ${endTime}`
+			// 		})
+			// 		return { waktu, jadwal: resdata }
+			// 	}))
+			// 	return { hari: str, dataJadwal: kumpul }
+			// }))
 
-			const dataStruktural = await models.User.findAll({
-				where: {
-					consumerType: 3,
-					statusAktif: true
-				},
-				attributes: ['idUser', 'nama'],
-				include: [
-					{ 
-						model: models.UserDetail,
-						attributes: ['jabatanGuru', 'mengajarBidang', 'mengajarKelas', 'waliKelas'],
-					},
-				],
-				order: [['createdAt', 'ASC']],
-			});
+			// const dataStruktural = await models.User.findAll({
+			// 	where: {
+			// 		consumerType: 3,
+			// 		statusAktif: true
+			// 	},
+			// 	attributes: ['idUser', 'nama'],
+			// 	include: [
+			// 		{ 
+			// 			model: models.UserDetail,
+			// 			attributes: ['jabatanGuru', 'mengajarBidang', 'mengajarKelas', 'waliKelas'],
+			// 		},
+			// 	],
+			// 	order: [['createdAt', 'ASC']],
+			// });
 
-			const getResult = await Promise.all(dataStruktural.map(async val => {
-				const { UserDetail } = val
-				return {
-					idUser: val.idUser,
-					nama: val.nama,
-					jabatanGuru: UserDetail.jabatanGuru ? await _jabatanOption({ models, kode: UserDetail.jabatanGuru }) : [],
-					mengajarBidang: UserDetail.mengajarBidang ? await _mengajarOption({ models, kode: UserDetail.mengajarBidang }) : [],
-					mengajarKelas: UserDetail.mengajarKelas,
-					waliKelas: UserDetail.waliKelas,
-				}
-			}))
+			// const getResult = await Promise.all(dataStruktural.map(async val => {
+			// 	const { UserDetail } = val
+			// 	return {
+			// 		idUser: val.idUser,
+			// 		nama: val.nama,
+			// 		jabatanGuru: UserDetail.jabatanGuru ? await _jabatanOption({ models, kode: UserDetail.jabatanGuru }) : [],
+			// 		mengajarBidang: UserDetail.mengajarBidang ? await _mengajarOption({ models, kode: UserDetail.mengajarBidang }) : [],
+			// 		mengajarKelas: UserDetail.mengajarKelas,
+			// 		waliKelas: UserDetail.waliKelas,
+			// 	}
+			// }))
 
-			return OK(res, { result, dataKelas, dataGuru: getResult });
+			// return OK(res, { result, dataKelas, dataGuru: getResult });
+			return OK(res, makeRandom(10))
 		} catch (err) {
 			return NOT_FOUND(res, err.message)
 		}
@@ -5043,7 +5120,9 @@ module.exports = {
   updatePeringkat,
   getJadwalMengajar,
   getJadwalPelajaran,
+  getModulPelajaran,
   postJadwalMengajar,
+  getKelasSiswa,
   getPenilaian,
   postPenilaian,
   downloadTemplate,

@@ -2,7 +2,8 @@ const {
 	response,
 	OK,
 	NOT_FOUND,
-	NO_CONTENT
+	NO_CONTENT,
+	UNPROCESSABLE
 } = require('@triyogagp/backend-common/utils/response.utils');
 const { 
 	_buildResponseUser,
@@ -29,8 +30,8 @@ function login (models) {
 		let { username, password } = req.body		
 		let where = {}	
     try {
-			if(!username){ return NOT_FOUND(res, 'Username atau Email tidak boleh kosong !') }
-			if(!password){ return NOT_FOUND(res, 'Kata Sandi tidak boleh kosong !') }
+			if(!username){ return UNPROCESSABLE(res, 'Username atau Email tidak boleh kosong !') }
+			if(!password){ return UNPROCESSABLE(res, 'Kata Sandi tidak boleh kosong !') }
 
 			where = {
 				[Op.and]: [
@@ -55,17 +56,18 @@ function login (models) {
 					{ 
 						model: models.UserDetail,
 					},
-				]
+				],
+				nest: true
 			});
-
-			if(!data){ return NOT_FOUND(res, 'data tidak di temukan !') }
-
+			
+			if(!data){ return UNPROCESSABLE(res, 'data tidak di temukan !') }
+			const { Role, UserDetail } = data
 			const match = await bcrypt.compare(password, data.password);
-			if(!match) return NOT_FOUND(res, 'Kata Sandi tidak sesuai !');
+			if(!match) return UNPROCESSABLE(res, 'Kata Sandi tidak sesuai !');
 			const dataJWT = {
 				userID: data.idUser,
 				consumerType: data.consumerType,
-				namaRole: data.Role.namaRole,
+				namaRole: Role.namaRole,
 				username: data.username,
 				nama: data.nama,
 				email: data.email,
@@ -76,14 +78,22 @@ function login (models) {
 			const refreshToken = jwt.sign(dataJWT, process.env.REFRESH_TOKEN_SECRET, {
 					expiresIn: '1d'
 			});
-
-			data.isActive = 1
+			
+			if(data.consumerType == 3 && (UserDetail.mengajarBidang === null || UserDetail.mengajarKelas === null)){
+				data.isActive = 0
+			}else{
+				data.isActive = 1
+			}
+			
 			data.updateBy = dataJWT.userID
 			data.save()
-			let result = await _buildResponseUser(data, refreshToken, accessToken)
+			
+			let result = await _buildResponseUser(data, refreshToken, accessToken, models)
 
 			return OK(res, result, `Selamat Datang ${result.nama} sebagai ${result.namaRole}`)
     } catch (err) {
+			console.log(err);
+			
 			return NOT_FOUND(res, err.message)
     }
   }  
@@ -101,13 +111,13 @@ function forgotPass (models) {
 				attributes: { exclude: ['createBy', 'updateBy', 'deleteBy', 'createdAt', 'updatedAt', 'deletedAt'] },
 			});
 
-			if(!data){ return NOT_FOUND(res, 'data tidak di temukan !') }
+			if(!data){ return UNPROCESSABLE(res, 'data tidak di temukan !') }
 
 			let transporter = nodemailer.createTransport({
 				service: 'gmail',
 				auth: {
-					user: 'triyoga.ginanjar.p@gmail.com',
-					pass: 'edyqlenfqxgtmeat' //26122020CBN
+					user: process.env.EMAIL,
+					pass: process.env.SANDIAPPS
 				}
 			});
 
@@ -129,7 +139,7 @@ function forgotPass (models) {
 			};
 
 			transporter.sendMail(mailOptions, (err, info) => {
-				if (err) return NOT_FOUND(res, 'Gagal mengirim data ke alamat email anda, cek lagi email yang di daftarkan!.')
+				if (err) return UNPROCESSABLE(res, 'Gagal mengirim data ke alamat email anda, cek lagi email yang di daftarkan!.')
 			});
 
 			return OK(res, data, 'Kata Sandi sudah di kirimkan ke email anda, silahkan periksa email anda ..')
@@ -141,19 +151,20 @@ function forgotPass (models) {
 
 function ubahKataSandi (models) {
   return async (req, res, next) => {
-		let body = { ...req.body }
+		let body = req.body
     try {
-			let user = await models.User.findOne({where: {idUser: body.idUser}})
-			if(body.passwordLama != decrypt(user.kataSandi)) return NOT_FOUND(res, 'Kata Sandi Lama tidak cocok !')
-			if(body.passwordBaru != body.passwordConfBaru) return NOT_FOUND(res, 'Kata Sandi Baru tidak cocok dengan Konfirmasi Kata Sandi Baru !')
+			const { userID } = req.JWTDecoded
+			let user = await models.User.findOne({where: {idUser: userID}})
+			if(body.passwordLama != decrypt(user.kataSandi)) return UNPROCESSABLE(res, 'Kata Sandi Lama tidak cocok !')
+			if(body.passwordBaru != body.passwordConfBaru) return UNPROCESSABLE(res, 'Kata Sandi Baru tidak cocok dengan Konfirmasi Kata Sandi Baru !')
 			let salt = await bcrypt.genSalt();
 			let hashPassword = await bcrypt.hash(body.passwordBaru, salt);
 			let kirimdata = {
 				password: hashPassword,
 				kataSandi: encrypt(body.passwordBaru),
-				updateBy: body.idUser,
+				updateBy: userID,
 			}
-			await models.User.update(kirimdata, { where: { idUser: body.idUser } })
+			user.update(kirimdata)
 			return OK(res, user);
     } catch (err) {
 			return NOT_FOUND(res, err.message)
@@ -163,15 +174,16 @@ function ubahKataSandi (models) {
 
 function ubahProfile (models) {
   return async (req, res, next) => {
-		let body = { ...req.body }
+		let body = req.body
     try {
+			const { userID, consumerType } = req.JWTDecoded
 			let kirimdataUser, kirimdataUserDetail
-			if(body.role === '3'){
+			if(consumerType === 3){
 				kirimdataUser = {
 					nama: body.nama,
 					email: body.email,
 					username: body.username,
-					updateBy: body.idUser,
+					updateBy: userID,
 				}
 				kirimdataUserDetail = {
 					nomorInduk: body.nomorInduk,
@@ -189,12 +201,12 @@ function ubahProfile (models) {
 					pendidikanGuru: body.pendidikanGuru,
 				}
 			}
-			if(body.role === '1' || body.role === '2'){
+			if(consumerType === '1' || consumerType === '2'){
 				kirimdataUser = {
 					nama: body.nama,
 					email: body.email,
 					username: body.username,
-					updateBy: body.idUser,
+					updateBy: userID,
 				}
 				kirimdataUserDetail = {
 					tempat: body.tempat,
@@ -211,8 +223,8 @@ function ubahProfile (models) {
 				}
 			}
 			await sequelizeInstance.transaction(async trx => {
-				await models.User.update(kirimdataUser, { where: { idUser: body.idUser } }, { transaction: trx })
-				await models.UserDetail.update(kirimdataUserDetail, { where: { idUser: body.idUser } }, { transaction: trx })
+				await models.User.update(kirimdataUser, { where: { idUser: userID } }, { transaction: trx })
+				await models.UserDetail.update(kirimdataUserDetail, { where: { idUser: userID } }, { transaction: trx })
 			})
 			return OK(res, body);
     } catch (err) {
@@ -223,10 +235,10 @@ function ubahProfile (models) {
 
 function profile (models) {
   return async (req, res, next) => {
-		let { idUser } = req.params
     try {
+			const { userID, consumerType } = req.JWTDecoded
 			let dataProfile = await models.User.findOne({
-				where: { idUser },
+				where: { idUser: userID },
 				include: [
 					{ 
 						model: models.Role,
@@ -239,11 +251,11 @@ function profile (models) {
 				],
 			});
 
-			if(dataProfile.consumerType === 1 || dataProfile.consumerType === 2){
+			if(consumerType === 1 || consumerType === 2){
 				return OK(res, await _buildResponseAdmin(models, dataProfile));
-			}else if(dataProfile.consumerType === 3){
+			}else if(consumerType === 3){
 				return OK(res, await _buildResponseStruktural(models, dataProfile));
-			}else if(dataProfile.consumerType === 4){
+			}else if(consumerType === 4){
 				return OK(res, await _buildResponseSiswaSiswi(models, dataProfile));
 			}
     } catch (err) {
@@ -254,10 +266,20 @@ function profile (models) {
 
 function logout (models) {
   return async (req, res, next) => {
-		let { idUser } = req.params
 		try {
-			await models.User.update({ isActive: 0, updateBy: idUser }, { where: { idUser: idUser } })
+			const { userID } = req.JWTDecoded
+			await models.User.update({ isActive: 0, updateBy: userID }, { where: { idUser: userID } })
 			return OK(res)
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function authToken () {
+  return async (req, res, next) => {
+    try {
+			return OK(res, req.JWTDecoded);
     } catch (err) {
 			return NOT_FOUND(res, err.message)
     }
@@ -271,4 +293,5 @@ module.exports = {
   ubahProfile,
   profile,
   logout,
+  authToken,
 }

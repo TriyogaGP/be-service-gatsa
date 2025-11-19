@@ -2,7 +2,8 @@ const {
 	response,
 	OK,
 	NOT_FOUND,
-	NO_CONTENT
+	NO_CONTENT,
+	UNPROCESSABLE
 } = require('@triyogagp/backend-common/utils/response.utils');
 const {
 	encrypt,
@@ -15,6 +16,7 @@ const {
 	buildMysqlResponseWithPagination
 } = require('@triyogagp/backend-common/utils/helper.utils')
 const {
+	_allOptionCms,
 	_wilayahOption,
 	_wilayahCount,
 } = require('../controllers/helper.service')
@@ -61,6 +63,20 @@ function updateFile (models) {
 				{ fotoProfil: body.nama_folder+'/'+body.namaFile }
 				await models.UserDetail.update(kirimdata, { where: { idUser: body.idUser } })
 			}else if(body.table == 'CMSSetting'){
+				const dataCMS = await models.CMSSetting.findAll({ where: { kode: body.kode } });
+				const data = {}
+				dataCMS.forEach(str => {
+					let eva = JSON.parse(str.setting)
+					if(eva.label || eva.length){
+						data[str.kode] = eva
+					}else{
+						data[str.kode] = eva.value
+					}
+				})
+				const { logo } = data
+				let path_file = path.join(__dirname, `../public/bahan/${logo}`);
+				fs.unlinkSync(path_file);
+
 				kirimdata = { 
 					setting: JSON.stringify({
 						value: body.namaFile,
@@ -83,8 +99,9 @@ function updateBerkas (models) {
 			let kirimdata
 			if(body.table == 'Berkas'){
 				kirimdata = { 
-					idBerkas: await createKSUID(),
+					idBerkas: makeRandom(10),
 					type: body.type,
+					jenis: body.jenis,
 					title: body.title,
 					ext: body.ext,
 					statusAktif: 1,
@@ -150,50 +167,445 @@ function getDecrypt () {
   }  
 }
 
-function getMenu (models) {
+function optionsMenu (models) {
   return async (req, res, next) => {
-		let { pilihan, kategori, page = 1, limit = 10, keyword } = req.query
+    try {
+			const { consumerType } = req.JWTDecoded
+      const dataRoleMenu = await models.RoleMenu.findAll({ where: { idRole: consumerType }, nest: true });
+			
+			let dataKumpul = []
+			await dataRoleMenu.map(val => {
+				let objectBaru = Object.assign(val, {
+					menu: val.menu ? JSON.parse([val.menu]) : []
+				});
+				return dataKumpul.push(objectBaru)
+			})
+			let result = await Promise.all(dataKumpul.map(async value => {
+				let kumpul = await Promise.all(value.menu.map(async val => {
+					let kumpulsub = await Promise.all(val.subMenu.map(async val2 => {
+						const dataMenu = await models.Menu.findOne({
+							where: { idMenu: val2.idMenu }
+						});
+						return dataMenu
+					}))
+					const dataMenu = await models.Menu.findOne({
+						where: { idMenu: val.idMenu }
+					});
+					let dataSubMenuOrderBy = _.orderBy(kumpulsub, 'menuSequence', 'asc')
+					let objectBaru = {
+						menuRoute: dataMenu.menuRoute,
+						menuText: dataMenu.menuText,
+						menuIcon: dataMenu.menuIcon,
+						menuSequence: consumerType === 4 ? dataMenu.menuSequence : dataMenu.menuSequence + 1,
+						statusAktif: dataMenu.statusAktif,
+						kondisi: val.kondisi,
+						subMenu: dataSubMenuOrderBy.filter(value => value.statusAktif)
+					};
+					return objectBaru
+				}))
+				if(consumerType !== 4){
+					kumpul.push({
+						menuRoute: '/dashboard',
+						menuText: 'Dashboard',
+						menuIcon: 'mdi mdi-view-dashboard',
+						menuSequence: 1,
+						statusAktif: true,
+						kondisi: false, 
+						subMenu: []
+					})
+				}
+				let dataMenuOrderBy = _.orderBy(kumpul, 'menuSequence', 'asc')
+				let objectBaru = Object.assign(value, { menu: dataMenuOrderBy.filter(value => value.statusAktif) });
+				return objectBaru
+			}))
+
+			return OK(res, result);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function optionsDataMaster (models) {
+  return async (req, res, next) => {
+		let { kode } = req.query
+    try {
+			let datamaster = await _allOptionCms(models, { where: { kode } })
+			return OK(res, datamaster);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function optionsWilayah (models) {
+  return async (req, res, next) => {
+		let { bagian, KodeWilayah } = req.query
+		let jmlString = bagian == 'provinsi' ? 2 : bagian == 'kabkotaOnly' ? 5 : bagian == 'kecamatanOnly' ? 8 : bagian == 'kelurahanOnly' ? 13 : KodeWilayah.length
+		let whereChar = (jmlString==2?5:(jmlString==5?8:13))
+    let where = {}
+		try {
+			if(bagian == 'provinsi' || bagian == 'kabkotaOnly' || bagian == 'kecamatanOnly' || bagian == 'kelurahanOnly') {
+				where = sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), jmlString)
+			}else{
+				where = { 
+					[Op.and]: [
+						sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), whereChar),
+						{
+							kode: {
+								[Op.like]: `${KodeWilayah}%`
+							}
+						}
+					]
+				}
+			}
+			const dataWilayah = await models.Wilayah.findAll({
+				where,
+				// attributes: [['kode', 'value'], ['nama', 'text'], 'kodePos']
+				attributes: ['kode', 'nama', 'kodePos'],
+				order: [['kode', 'ASC']]
+			});
+
+			return OK(res, dataWilayah);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function optionsWilayah2023 (models) {
+  return async (req, res, next) => {
+		let { bagian, KodeWilayah } = req.query
+		let jmlString = bagian == 'provinsi' ? 2 : bagian == 'kabkotaOnly' ? 5 : bagian == 'kecamatanOnly' ? 8 : bagian == 'kelurahanOnly' ? 13 : KodeWilayah.length
+		let whereChar = bagian === 'kabkota' || bagian === 'kecamatan' || bagian === 'kelurahan' ? (jmlString == 2 ? 5 : (jmlString == 5 ? 8 : 13)) : jmlString
+    let where = {}
+    let attributes = ['idLocation', [sequelize.fn('LEFT', sequelize.col('kode'), whereChar), 'kode']]
+		try {
+			if(bagian === 'kabkota' || bagian === 'kecamatan' || bagian === 'kelurahan')
+			where = { 
+				kode: { [Op.like]: `${KodeWilayah}%` },
+				statusAktif: true,
+			}
+			if(bagian === 'provinsi') { attributes.push(['nama_prov', 'nama']) }
+			if(bagian === 'kabkotaOnly' || bagian === 'kabkota') { attributes.push('jenisKabKota', ['nama_kabkota', 'nama']) }
+			if(bagian === 'kecamatanOnly' || bagian === 'kecamatan') { attributes.push(['nama_kec', 'nama']) }
+			if(bagian === 'kelurahanOnly' || bagian === 'kelurahan') { attributes.push('jenisKelDes', ['nama_keldes', 'nama'], 'kodePos') }
+			const dataWilayah = await models.Wilayah2023.findAll({
+				where,
+				attributes,
+				order: [['kode', 'ASC']],
+				group: [sequelize.fn('LEFT', sequelize.col('kode'), whereChar)]
+			});
+
+			return OK(res, dataWilayah);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function optionsBerkas (models) {
+  return async (req, res, next) => {
+		const { kategori, jenis } = req.query
 		let where = {}
+    try {
+			if(kategori === 'tautan') where = { jenis, statusAktif: true }
+      const dataBerkas = await models.Berkas.findAll({ where, raw: true });
+			let extGBR = [], extFile = []
+			await Promise.all(dataBerkas.map(val => {
+				if(val.type === 'Gambar'){
+					extGBR.push({
+						...val,
+						file: `${BASE_URL}berkas/${val.file}`
+					})
+				}else if(val.type === 'File'){
+					extFile.push({
+						...val,
+						file: `${BASE_URL}berkas/${val.file}`
+					})
+				}
+			}))
+
+			if(extGBR.length && extFile.length){
+				// return OK(res, [{header: 'Files'}, ...extFile, {divider: true}, {header: 'Images'}, ...extGBR]);
+				return OK(res, [...extFile, ...extGBR]);
+			}else if(extGBR.length && !extFile.length){
+				// return OK(res, [{header: 'Images'}, ...extGBR]);
+				return OK(res, [...extGBR]);
+			}else if(!extGBR.length && extFile.length){
+				// return OK(res, [{header: 'Files'}, ...extFile]);
+				return OK(res, [...extFile]);
+			}
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function optionsUserBroadcast (models) {
+	return async (req, res, next) => {
+		const { kategori, kode } = req.query
+    try {
+			const { consumerType } = req.JWTDecoded
+			const type = consumerType === 1 || consumerType === 2 || (consumerType === 3 && kode === '1') ? [3, 4] : consumerType === 3 ? 4 : 3
+			if(kategori === 'USER'){
+				const dataUser = await models.User.findAll({
+					where: {
+						consumerType: type,
+						statusAktif: true,
+					},
+					include: [
+						{ 
+							model: models.UserDetail,
+						},
+					],
+					order: [
+						[models.UserDetail, 'kelas', 'ASC'],
+						['nama', 'ASC'],
+					],
+				});
+				let pushSiswa = [], pushGuru = []
+				await Promise.all(dataUser.map(async val => {
+					const group = val.consumerType === 3 ? 'Guru' : 'Siswa-Siswi'
+					if(val.consumerType === 3){
+						pushGuru.push({
+							idUser: val.idUser,
+							consumerType: val.consumerType,
+							nama: val.nama,
+							kelas: val.UserDetail.kelas,
+							text: val.consumerType === 3 ? `${val.nama}` : `${val.nama} (${val.UserDetail.kelas})`,
+							value: val.idUser,
+							group,
+							fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+						})
+					}
+					if(val.consumerType === 4){
+						pushSiswa.push({
+							idUser: val.idUser,
+							consumerType: val.consumerType,
+							nama: val.nama,
+							kelas: val.UserDetail.kelas,
+							text: val.consumerType === 3 ? `${val.nama}` : `${val.nama} (${val.UserDetail.kelas})`,
+							value: val.idUser,
+							group,
+							fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
+						})
+					}
+				}))
+				if(pushSiswa.length && pushGuru.length){
+					return OK(res, [{ type: 'subheader', text: 'Guru' }, {divider: true}, ...pushGuru, {divider: true}, {type: 'subheader', text: 'Siswa-Siswi'}, {divider: true}, ...pushSiswa]);
+					// return OK(res, [...pushGuru, ...pushSiswa]);
+				}else if(pushSiswa.length && !pushGuru.length){
+					return OK(res, [{type: 'subheader', text: 'Siswa-Siswi'}, {divider: true}, ...pushSiswa]);
+					// return OK(res, [...pushSiswa]);
+				}else if(!pushSiswa.length && pushGuru.length){
+					return OK(res, [{type: 'subheader', text: 'Guru'}, {divider: true}, ...pushGuru]);
+					// return OK(res, [...pushGuru]);
+				}
+			}else if(kategori === 'KELAS'){
+				const dataKelas = await models.Kelas.findAll({
+					where: {
+						status: true
+					},
+				});
+
+				const dataUser = await Promise.all(dataKelas.map(async val => {
+					const user = await models.User.findAll({
+						where: {
+							consumerType: 4,
+							statusAktif: true,
+						},
+						include: [
+							{ 
+								where: {
+									kelas: val.kelas,
+								},
+								model: models.UserDetail,
+							},
+						],
+						order: [
+							['nama', 'ASC'],
+						],
+					});
+					const result = []
+					await Promise.all(user.map(async val => {
+						result.push(val.idUser)
+						return result
+					}))
+					return {
+						text: val.kelas,
+						value: val.kelas,
+						listUser: result,
+					}
+				}))
+				return OK(res, dataUser);
+			}
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
+function optionsKelas (models) {
+  return async (req, res, next) => {
+		let { kondisi, walikelas } = req.query
+    try {
+			const dataKelas = await models.Kelas.findAll({where: {status: true}, raw: true});
+			if(kondisi === 'Use'){
+				let result = []
+				await Promise.all(dataKelas.map(async str => {
+					const user = await models.UserDetail.findOne({where: {waliKelas: str.kelas}});
+					if(user){
+						if(walikelas !== user.waliKelas){
+							result.push({ ...str, kelas: `${str.kelas} (sudah di gunakan)`, disabled: true })
+						}else{
+							result.push(str)
+						}
+					}else{
+						result.push(str)
+					}
+				}))
+				return OK(res, _.orderBy(result, 'idKelas', 'ASC'));
+			}
+
+			return OK(res, dataKelas);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getCMSSetting (models) {
+  return async (req, res, next) => {
+    try {
+			const dataCMS = await models.CMSSetting.findAll();
+
+			const data = {}
+			dataCMS.forEach(str => {
+				let eva = JSON.parse(str.setting)
+				if(eva.label || eva.length){
+					data[str.kode] = eva
+				}else{
+					// if(str.kode === 'logo') return data[str.kode] = `${BASE_URL}bahan/${eva.value}`
+					data[str.kode] = eva.value
+				}
+			})
+			return OK(res, data);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function crudCMSSetting (models) {
+  return async (req, res, next) => {
+		let body = req.body
+    try {
+			if (body.jenis == 'nonDataMaster') {
+				const mappingData = []
+				Object.entries(body).forEach(str => {
+					if(str[1].label){
+						mappingData.push({
+							kode: str[0],
+							setting: str[1],
+						})
+					}else{
+						if(str[1] != 'nonDataMaster'){
+							mappingData.push({
+								kode: str[0],
+								setting: { value: str[1] },
+							})
+						}
+					}
+				})
+	
+				await [null, ...mappingData].reduce(async (memo, data) => {
+					await memo;
+					await models.CMSSetting.upsert(
+						{ setting : JSON.stringify(data.setting), kode: data.kode },
+						{ where: { kode: data.kode } }
+					)
+				})
+				return OK(res, mappingData);
+			}else if(body.jenis == 'add'){
+				let datamaster = await _allOptionCms(models, { where: { kode: body.kode } })
+				let last = _.last(datamaster)
+				let urutan = body.kode == 'mengajar' || body.kode == 'jabatan' ? Number(last?.value) + 1 : last?.value + 1
+				let setting = body.kode == 'mengajar' ? { ...body.setting, value: String(urutan) } : { value: body.kode == 'jabatan' ? String(urutan) : urutan, label: body.setting.label }
+				let kirimdata = {
+					setting: JSON.stringify([ ...datamaster, setting ])
+				}
+				await models.CMSSetting.update(kirimdata, { where: { kode: body.kode } })
+				return OK(res, { ...kirimdata, kode: body.kode })
+			}else if(body.jenis == 'edit'){
+				let datamaster = await _allOptionCms(models, { where: { kode: body.kode } })
+				let setting = []
+				datamaster.forEach(x => {
+					if(x.value == body.setting.value){
+						if(body.kode == 'mengajar'){
+							setting.push({ ...x, label: body.setting.label, alias: body.setting.alias, color: body.setting.color })
+						}else{
+							setting.push({ ...x, label: body.setting.label })
+						}
+					}else{
+						setting.push(x)
+					}
+				})
+				await models.CMSSetting.update({ setting: JSON.stringify(setting) }, { where: { kode: body.kode } })
+				return OK(res, { body, datamaster })
+			}else if(body.jenis == 'clear'){
+				let datamaster = await _allOptionCms(models, { where: { kode: body.kode } })
+				let setting = []
+				datamaster.filter(x => x.value != body.setting.value).map((x, ind) => {
+					if(body.kode == 'mengajar'){
+						setting.push({  ...x, value: body.kode == 'mengajar' || body.kode == 'jabatan' ? String(ind+1) : ind+1 })
+					}else{
+						setting.push({  ...x, value: body.kode == 'mengajar' || body.kode == 'jabatan' ? String(ind+1) : ind+1 })
+					}
+				})
+				await models.CMSSetting.update({ setting: JSON.stringify(setting) }, { where: { kode: body.kode } })
+				return OK(res, body)
+			}
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getBerkas (models) {
+  return async (req, res, next) => {
+		let { page = 1, limit = 10, keyword } = req.query
+    let where = {}
 		let order = []
     try {
 			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
 			order = [
-				['kategori', 'DESC'],
-				['menuSequence', 'ASC']
+				['createdAt', 'DESC'],
 			]
-
-			if(pilihan == 'ALL') {
-				if(kategori) {
-					where.kategori = kategori
-				}	
-
-				const dataMenu = await models.Menu.findAll({
-					where,
-					order,
-				});
-
-				return OK(res, dataMenu);
-			}
 
 			const whereKey = keyword ? {
 				[Op.or]: [
-					{ menuText : { [Op.like]: `%${keyword}%` }},
-					{ menuRoute : { [Op.like]: `%${keyword}%` }},
-					{ kategori : { [Op.like]: `%${keyword}%` }},
+					{ title : { [Op.like]: `%${keyword}%` }},
 				]
-			} : kategori ? { kategori: kategori } : {}
+			} : {}
 
 			where = whereKey
 
-      const { count, rows: dataMenu } = await models.Menu.findAndCountAll({
+			const { count, rows: dataBerkas } = await models.Berkas.findAndCountAll({
 				where,
 				order,
 				limit: parseInt(limit),
 				offset: OFFSET,
+				raw: true
 			});
 
 			const responseData = buildMysqlResponseWithPagination(
-				dataMenu,
+				await dataBerkas.map(val => {
+					return {
+						...val,
+						file: `${BASE_URL}berkas/${val.file}`
+					}
+				}),
 				{ limit, page, total: count }
 			)
 
@@ -204,72 +616,23 @@ function getMenu (models) {
   }  
 }
 
-function crudMenu (models) {
+function crudBerkas (models) {
   return async (req, res, next) => {
-		let body = { ...req.body }
-		let where = {}
+		let body = req.body
     try {
-			if(body.jenis == 'ADD'){
-				where = { 
-					statusAktif: true,
-					[Op.or]: [
-						// { 
-						// 	[Op.and]: [
-						// 		{ kategori: body.kategori },
-						// 		{ menuRoute: body.menu_route },
-						// 	]
-						// },
-						{ 
-							[Op.and]: [
-								{ menuRoute: body.menu_route },
-								{ menuText: body.menu_text }
-							]
-						},
-					]
-				}
-				const {count, rows} = await models.Menu.findAndCountAll({where});
-				if(count) return NOT_FOUND(res, 'data sudah di gunakan !')
-				let dataCek = await models.Menu.findOne({where: {kategori: body.kategori}, limit: 1, order: [['idMenu', 'DESC']]})
-				let urutan = dataCek.menuSequence + 1
-				kirimdata = {
-					kategori: body.kategori,
-					menuRoute: body.menu_route,
-					menuText: body.menu_text,
-					menuIcon: body.menu_icon,
-					menuSequence: urutan,
-					statusAktif: 1,
-				}
-				await models.Menu.create(kirimdata)
-			}else if(body.jenis == 'EDIT'){
-				if(await models.Menu.findOne({
-					where: {
-						[Op.and]: [
-							{ menuRoute: body.menu_route },
-							{ menuText: body.menu_text }
-						],
-						[Op.not]: [
-							{idMenu: body.id_menu}
-						]
-					}
-				})) return NOT_FOUND(res, 'Menu Route atau Menu Text sudah di gunakan !')
-				kirimdata = {
-					kategori: body.kategori,
-					menuRoute: body.menu_route,
-					menuText: body.menu_text,
-					menuIcon: body.menu_icon,
-					statusAktif: 1,
-				}
-				await models.Menu.update(kirimdata, { where: { idMenu: body.id_menu } })
+			if(body.jenis == 'STATUSRECORD'){
+				await models.Berkas.update({ statusAktif: body.statusAktif }, { where: { idBerkas: body.idBerkas } })
 			}else if(body.jenis == 'DELETE'){
-				kirimdata = {
-					statusAktif: 0
-				}
-				await models.Menu.update(kirimdata, { where: { idMenu: body.id_menu } })	
-			}else if(body.jenis == 'STATUSRECORD'){
-				kirimdata = { 
-					statusAktif: body.status_aktif 
-				}
-				await models.Menu.update(kirimdata, { where: { idMenu: body.id_menu } })
+				await sequelizeInstance.transaction(async trx => {
+					const dataBerkas = await models.Berkas.findOne({
+						where: { idBerkas: body.idBerkas },
+						nest: true
+					});
+					const { file } = dataBerkas
+					let path_file = path.join(__dirname, `../public/berkas/${file}`);
+					fs.unlinkSync(path_file);
+					await models.Berkas.destroy({ where: { idBerkas: body.idBerkas } }, { transaction: trx });
+				})
 			}else{
 				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
 			}
@@ -329,7 +692,7 @@ function getRole (models) {
 
 function crudRole (models) {
   return async (req, res, next) => {
-		let body = { ...req.body }
+		let body = req.body
 		let where = {}
     try {
 			if(body.jenis == 'ADD'){
@@ -337,38 +700,143 @@ function crudRole (models) {
 					status: true,
 					namaRole: body.nama_role
 				}
-				const {count, rows} = await models.Role.findAndCountAll({where});
-				if(count) return NOT_FOUND(res, 'data sudah di gunakan !')
-				kirimdata = {
-					namaRole: body.nama_role,
-					status: 1,
-				}
-				let kirim = await models.Role.create(kirimdata)
+				const count = await models.Role.count({where});
+				if(count) return UNPROCESSABLE(res, 'data sudah di gunakan !')
+				let kirim = await models.Role.create({ namaRole: body.nama_role, status: 1 })
 				if(kirim){
 					let data = await models.Role.findOne({where: {namaRole: body.nama_role}})
-					let sendData = {
-						idRole: data.idRole,
-						menu: '',
-					}
-					await models.RoleMenu.create(sendData)
+					await models.RoleMenu.create({ idRole: data.idRole, menu: '' })
 				}
 			}else if(body.jenis == 'EDIT'){
-				if(await models.Role.findOne({where: {namaRole: body.nama_role, [Op.not]: [{idRole: body.id_role}]}})) return NOT_FOUND(res, 'Nama Role sudah di gunakan !')
-				kirimdata = {
-					namaRole: body.nama_role,
-					status: 1,
-				}
-				await models.Role.update(kirimdata, { where: { idRole: body.id_role } })
+				if(await models.Role.findOne({where: {namaRole: body.nama_role, [Op.not]: [{idRole: body.id_role}]}})) return UNPROCESSABLE(res, 'Nama Role sudah di gunakan !')
+				await models.Role.update({ namaRole: body.nama_role, status: 1 }, { where: { idRole: body.id_role } })
 			}else if(body.jenis == 'DELETE'){
-				kirimdata = {
-					status: 0
-				}
-				await models.Role.update(kirimdata, { where: { idRole: body.id_role } })	
+				await models.Role.update({ status: 0 }, { where: { idRole: body.id_role } })	
 			}else if(body.jenis == 'STATUSRECORD'){
-				kirimdata = { 
-					status: body.status 
+				await models.Role.update({ status: body.status }, { where: { idRole: body.id_role } })
+			}else{
+				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
+			}
+
+			return OK(res);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function getMenu (models) {
+  return async (req, res, next) => {
+		let { pilihan, kategori, page = 1, limit = 10, keyword } = req.query
+		let where = {}
+		let order = []
+    try {
+			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
+			order = [
+				['kategori', 'DESC'],
+				['menuSequence', 'ASC']
+			]
+
+			if(pilihan == 'ALL') {
+				if(kategori) {
+					where.kategori = kategori
+				}	
+
+				const dataMenu = await models.Menu.findAll({
+					where,
+					order,
+				});
+
+				return OK(res, dataMenu);
+			}
+
+			const whereKey = keyword ? {
+				[Op.or]: [
+					{ menuText : { [Op.like]: `%${keyword}%` }},
+					{ menuRoute : { [Op.like]: `%${keyword}%` }},
+					{ kategori : { [Op.like]: `%${keyword}%` }},
+				]
+			} : kategori ? { kategori: kategori } : {}
+
+			where = whereKey
+
+      const { count, rows: dataMenu } = await models.Menu.findAndCountAll({
+				where,
+				order,
+				limit: parseInt(limit),
+				offset: OFFSET,
+			});
+
+			const responseData = buildMysqlResponseWithPagination(
+				dataMenu,
+				{ limit, page, total: count }
+			)
+
+			return OK(res, responseData);
+    } catch (err) {
+			return NOT_FOUND(res, err.message)
+    }
+  }  
+}
+
+function crudMenu (models) {
+  return async (req, res, next) => {
+		let body = req.body
+		let where = {}
+    try {
+			if(body.jenis == 'ADD'){
+				where = { 
+					statusAktif: true,
+					[Op.or]: [
+						// { 
+						// 	[Op.and]: [
+						// 		{ kategori: body.kategori },
+						// 		{ menuRoute: body.menu_route },
+						// 	]
+						// },
+						{ 
+							[Op.and]: [
+								{ menuRoute: body.menu_route },
+								{ menuText: body.menu_text }
+							]
+						},
+					]
 				}
-				await models.Role.update(kirimdata, { where: { idRole: body.id_role } })
+				const count = await models.Menu.count({where});
+				if(count) return UNPROCESSABLE(res, 'data sudah di gunakan !')
+				let dataCek = await models.Menu.findOne({where: {kategori: body.kategori}, limit: 1, order: [['idMenu', 'DESC']]})
+				let urutan = dataCek.menuSequence + 1
+				await models.Menu.create({
+					kategori: body.kategori,
+					menuRoute: body.menu_route,
+					menuText: body.menu_text,
+					menuIcon: body.menu_icon,
+					menuSequence: urutan,
+					statusAktif: 1,
+				})
+			}else if(body.jenis == 'EDIT'){
+				if(await models.Menu.findOne({
+					where: {
+						[Op.and]: [
+							{ menuRoute: body.menu_route },
+							{ menuText: body.menu_text }
+						],
+						[Op.not]: [
+							{idMenu: body.id_menu}
+						]
+					}
+				})) return UNPROCESSABLE(res, 'Menu Route atau Menu Text sudah di gunakan !')
+				await models.Menu.update({
+					kategori: body.kategori,
+					menuRoute: body.menu_route,
+					menuText: body.menu_text,
+					menuIcon: body.menu_icon,
+					statusAktif: 1,
+				}, { where: { idMenu: body.id_menu } })
+			}else if(body.jenis == 'DELETE'){
+				await models.Menu.update({ statusAktif: 0 }, { where: { idMenu: body.id_menu } })	
+			}else if(body.jenis == 'STATUSRECORD'){
+				await models.Menu.update({ statusAktif: body.status_aktif }, { where: { idMenu: body.id_menu } })
 			}else{
 				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
 			}
@@ -402,7 +870,7 @@ function getSequenceMenu (models) {
 
 function crudSequenceMenu (models) {
   return async (req, res, next) => {
-		let body = { ...req.body }
+		let body = req.body
     try {
 			const { Menu } = body
 			await Menu.map(async (val, i) => {
@@ -495,369 +963,12 @@ function getRoleMenu (models) {
 
 function crudRoleMenu (models) {
   return async (req, res, next) => {
-		let body = { ...req.body }
+		let body = req.body
     try {
-			kirimdata = {
+			await models.RoleMenu.update({
 				idRole: body.id_role,
-				menu: JSON.stringify(body.menu),
-			}
-			await models.RoleMenu.update(kirimdata, { where: { idRoleMenu: body.id_role_menu } })
-			return OK(res);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function getKategoriNotifikasi (models) {
-	return async (req, res, next) => {
-    try {
-			const { userID } = req.JWTDecoded
-			const datakategori = await models.Notifikasi.findAll({
-				where: { idUser: userID, isRead: false },
-				order: [['createdAt','DESC']],
-			});
-
-			const result = datakategori.reduce((memo, notifikasi) => {
-				const tmp = memo
-				const { type } = notifikasi
-				if(type === 'Record') tmp.record += 1
-				if(type === 'Report') tmp.report += 1
-				// if(type === 'Broadcast') tmp.broadcast += 1
-				tmp.all += 1
-				return tmp
-			}, {
-				all: 0,
-				record: 0,
-				report: 0,
-				// broadcast: 0,
-			})
-
-			const response = [
-				{
-					kode: '1',
-					text: 'All Notification',
-					count: result.all,
-				},
-				{
-					kode: '2',
-					text: 'Record',
-					count: result.record,
-				},
-				{
-					kode: '3',
-					text: 'Report',
-					count: result.report,
-				},
-				// {
-				// 	kode: '4',
-				// 	text: 'Broadcast',
-				// 	count: result.broadcast,
-				// },
-			]
-
-			return OK(res, response);
-	  } catch (err) {
-			return NOT_FOUND(res, err.message)
-	  }
-	}  
-}
-
-function getNotifikasi (models) {
-	return async (req, res, next) => {
-	  let { page = 1, limit = 5, kategori, untuk } = req.query
-		let whereUntuk = {}
-    try {
-			const { userID } = req.JWTDecoded
-			if(untuk === 'pengirim'){
-				whereUntuk.createBy = userID
-			}else{
-				whereUntuk.idUser = userID
-			}
-			const type = kategori === '1' ? ['Record', 'Report', 'Broadcast'] : kategori === '2' ? ['Record'] : kategori === '4' ? ['Broadcast'] : ['Report']
-			const offset = limit * (page - 1)
-			const { count, rows: datanotifikasi } = await models.Notifikasi.findAndCountAll({
-				where: { ...whereUntuk, type: type },
-				order: [['createdAt','DESC']],
-				limit: parseInt(limit, 10),
-				offset,
-			});
-
-			const records = await Promise.all(datanotifikasi.map(async val => {
-				const dataBerkas = await models.Berkas.findAll({ where: { idBerkas: JSON.parse(val.dataValues.tautan), statusAktif: true } })
-				const dataUser = await models.User.findOne({ where: { idUser: val.dataValues.idUser } })
-				let pesan = JSON.parse(val.dataValues.pesan)
-				return {
-					...val.dataValues,
-					pesan: {
-						message: pesan.message,
-						payload: JSON.stringify(pesan.payload),
-					},
-					params: JSON.parse(val.dataValues.params),
-					tautan: await dataBerkas.map(k => {
-						return {
-							...k.dataValues,
-							file: `${BASE_URL}berkas/${k.dataValues.file}`
-						}
-					}),
-					tujuan: dataUser.nama,
-					createdAt: convertDateTime(val.dataValues.createdAt),
-				}
-			}))
-
-			const arrangeResponse = () => {
-				const totalPage = Math.ceil(count / limit)
-				const hasNext = totalPage > parseInt(page, 10)
-				const pageSummary = { limit: Number(limit), page: Number(page), hasNext, lastID: '', total: count, totalPage }
-
-				if(count > 0){
-					pageSummary.lastID = datanotifikasi[datanotifikasi.length - 1].idNotifikasi
-					return { records, pageSummary }
-				}
-				return { records: [], pageSummary }
-			}
-
-			return OK(res, arrangeResponse());
-	  } catch (err) {
-			return NOT_FOUND(res, err.message)
-	  }
-	}  
-}
-
-function getCountNotifikasi (models) {
-	return async (req, res, next) => {
-    try {
-			const { userID } = req.JWTDecoded
-			const datakategori = await models.Notifikasi.findAll({
-				where: { idUser: userID, isRead: false },
-				order: [['createdAt','DESC']],
-			});
-
-			const result = datakategori.reduce((memo, notifikasi) => {
-				const tmp = memo
-				const { type } = notifikasi
-				if(type === 'Record') tmp.record += 1
-				if(type === 'Report') tmp.report += 1
-				if(type === 'Broadcast') tmp.broadcast += 1
-				tmp.all += 1
-				return tmp
-			}, {
-				all: 0,
-				record: 0,
-				report: 0,
-				broadcast: 0,
-			})
-
-			const response = [
-				{
-					kode: '1',
-					text: 'All Notification',
-					count: result.all,
-				},
-				{
-					kode: '2',
-					text: 'Record',
-					count: result.record,
-				},
-				{
-					kode: '3',
-					text: 'Report',
-					count: result.report,
-				},
-				{
-					kode: '4',
-					text: 'Broadcast',
-					count: result.broadcast,
-				},
-			]
-
-			return OK(res, response);
-	  } catch (err) {
-			return NOT_FOUND(res, err.message)
-	  }
-	}  
-}
-
-function crudNotifikasi (models) {
-	return async (req, res, next) => {
-	  let body = { ...req.body }
-    try {
-			const { userID } = req.JWTDecoded
-			if(body.jenis === 'ISREAD'){
-				let payload = {
-					isRead: 1,
-				}
-				await models.Notifikasi.update(payload, { where: { idNotifikasi: body.idNotifikasi } })
-			}else if(body.jenis === 'ISREADALL'){
-				const type = body.kategori === '1' ? ['Record', 'Report'] : body.kategori === '2' ? ['Record'] : body.kategori === '4' ? ['Broadcast'] : ['Report']
-				const datanotifikasi = await models.Notifikasi.findAll({
-					where: { idUser: userID, type: type, isRead: 0 },
-					attributes: ["idNotifikasi", "type"],
-				});
-				await Promise.all(datanotifikasi.map(async val => {
-					await models.Notifikasi.update({ isRead: 1 }, { where: { idNotifikasi: val.dataValues.idNotifikasi } })
-				}))
-			}else if(body.jenis === 'CREATE'){
-				let payload = {
-					idNotifikasi: await createKSUID(),
-					idUser: body.idUser,
-					type: body.type,
-					judul: body.judul,
-					pesan: JSON.stringify(body.pesan),
-					params: body.params !== null ? JSON.stringify(body.params) : null,
-					dikirim: body.dikirim,
-					createBy: body.createBy,
-				}
-				await models.Notifikasi.create(payload)
-			}else if(body.jenis === 'BROADCAST'){
-				let payload = []
-				await Promise.all(body.idUser.map(async idUser => {
-					payload.push({
-						idNotifikasi: await createKSUID(),
-						idUser: idUser,
-						type: body.type,
-						judul: body.judul,
-						pesan: JSON.stringify(body.pesan),
-						params: body.params !== null ? JSON.stringify(body.params) : null,
-						dikirim: body.dikirim,
-						tautan: JSON.stringify(body.tautan),
-						createBy: body.createBy,
-				})
-				}))
-				// console.log(payload);
-				await models.Notifikasi.bulkCreate(payload)
-			}else if(body.jenis === 'DELETEBROADCAST'){
-				await models.Notifikasi.destroy({ where: { idNotifikasi: body.idNotifikasi } })
-			}
-			return OK(res)
-	  } catch (err) {
-			return NOT_FOUND(res, err.message)
-	  }
-	}  
-}
-
-function getCMSSetting (models) {
-  return async (req, res, next) => {
-    try {
-			const dataCMS = await models.CMSSetting.findAll();
-
-			const data = {}
-			dataCMS.forEach(str => {
-				let eva = JSON.parse(str.setting)
-				if(eva.label){
-					data[str.kode] = eva
-				}else{
-					// if(str.kode === 'logo') return data[str.kode] = `${BASE_URL}bahan/${eva.value}`
-					data[str.kode] = eva.value
-				}
-			})
-			return OK(res, data);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function crudCMSSetting (models) {
-  return async (req, res, next) => {
-		let body = { ...req.body }
-    try {
-			const mappingData = []
-			Object.entries(body).forEach(str => {
-				if(str[1].label){
-					mappingData.push({
-						kode: str[0],
-						setting: str[1],
-					})
-				}else{
-					mappingData.push({
-						kode: str[0],
-						setting: { value: str[1] },
-					})
-				}
-			})
-
-			await [null, ...mappingData].reduce(async (memo, data) => {
-				await memo;
-				await models.CMSSetting.upsert(
-					{ setting : JSON.stringify(data.setting), kode: data.kode },
-					{ where: { kode: data.kode } }
-				)
-			})
-			return OK(res, mappingData);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function getBerkas (models) {
-  return async (req, res, next) => {
-		let { page = 1, limit = 10, keyword } = req.query
-    let where = {}
-		let order = []
-    try {
-			const OFFSET = page > 0 ? (page - 1) * parseInt(limit) : undefined
-			order = [
-				['createdAt', 'DESC'],
-			]
-
-			const whereKey = keyword ? {
-				[Op.or]: [
-					{ title : { [Op.like]: `%${keyword}%` }},
-				]
-			} : {}
-
-			where = whereKey
-
-			const { count, rows: dataBerkas } = await models.Berkas.findAndCountAll({
-				where,
-				order,
-				limit: parseInt(limit),
-				offset: OFFSET,
-			});
-
-			const responseData = buildMysqlResponseWithPagination(
-				await dataBerkas.map(val => {
-					return {
-						...val.dataValues,
-						file: `${BASE_URL}berkas/${val.dataValues.file}`
-					}
-				}),
-				{ limit, page, total: count }
-			)
-
-			return OK(res, responseData);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function crudBerkas (models) {
-  return async (req, res, next) => {
-		let body = { ...req.body }
-		let where = {}
-    try {
-			if(body.jenis == 'STATUSRECORD'){
-				kirimdata = { 
-					statusAktif: body.statusAktif 
-				}
-				await models.Berkas.update(kirimdata, { where: { idBerkas: body.idBerkas } })
-			}else if(body.jenis == 'DELETE'){
-				await sequelizeInstance.transaction(async trx => {
-					const dataBerkas = await models.Berkas.findOne({
-						where: { idBerkas: body.idBerkas }
-					});
-					const { file } = dataBerkas.dataValues
-					let path_file = path.join(__dirname, `../public/berkas/${file}`);
-					fs.unlinkSync(path_file);
-					await models.Berkas.destroy({ where: { idBerkas: body.idBerkas } }, { transaction: trx });
-				})
-			}else{
-				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
-			}
-
+				menu: JSON.stringify(body.menu)
+			}, { where: { idRoleMenu: body.id_role_menu } })
 			return OK(res);
     } catch (err) {
 			return NOT_FOUND(res, err.message)
@@ -931,31 +1042,17 @@ function getCardRFID (models) {
 
 function crudCardRFID (models) {
   return async (req, res, next) => {
-		let body = { ...req.body }
-		let where = {}
+		let body = req.body
     try {
 			if(body.jenis == 'EDIT'){
-				if(await models.DataKartu.findOne({where: {idUser: body.idUser, [Op.not]: [{rfid: body.rfid}]}})) return NOT_FOUND(res, 'User sudah di pilih !')
-				kirimdata = {
-					idUser: body.idUser,
-					use: 1,
-				}
-				await models.DataKartu.update(kirimdata, { where: { rfid: body.rfid } })
+				if(await models.DataKartu.findOne({where: {idUser: body.idUser, [Op.not]: [{rfid: body.rfid}]}})) return UNPROCESSABLE(res, 'User sudah di pilih !')
+				await models.DataKartu.update({ idUser: body.idUser, use: 1 }, { where: { rfid: body.rfid } })
 			}else if(body.jenis == 'DELETE'){
 				await models.DataKartu.destroy({ where: { rfid: body.rfid } })	
 			}else if(body.jenis == 'STATUSRECORD'){
-				kirimdata = { 
-					idUser: null,
-					status: body.status,
-					use: 0,
-				}
-				await models.DataKartu.update(kirimdata, { where: { rfid: body.rfid } })
+				await models.DataKartu.update({ idUser: null, status: body.status, use: 0 }, { where: { rfid: body.rfid } })
 			}else if(body.jenis == 'USERECORD'){
-				kirimdata = { 
-					idUser: null,
-					use: body.use,
-				}
-				await models.DataKartu.update(kirimdata, { where: { rfid: body.rfid } })
+				await models.DataKartu.update({ idUser: null, use: body.use }, { where: { rfid: body.rfid } })
 			}else{
 				return NOT_FOUND(res, 'terjadi kesalahan pada sistem !')
 			}
@@ -965,446 +1062,6 @@ function crudCardRFID (models) {
 			return NOT_FOUND(res, err.message)
     }
   }  
-}
-
-function optionsMenu (models) {
-  return async (req, res, next) => {
-    let { id_role } = req.query
-    try {
-      const dataRoleMenu = await models.RoleMenu.findAll({ where: { idRole: id_role }});
-
-			let dataKumpul = []
-			await dataRoleMenu.map(val => {
-				let objectBaru = Object.assign(val.dataValues, {
-					menu: val.dataValues.menu ? JSON.parse([val.dataValues.menu]) : []
-				});
-				return dataKumpul.push(objectBaru)
-			})
-			
-			let result = await Promise.all(dataKumpul.map(async value => {
-				let kumpul = await Promise.all(value.menu.map(async val => {
-					let kumpulsub = await Promise.all(val.subMenu.map(async val2 => {
-						const dataMenu = await models.Menu.findOne({
-							where: { idMenu: val2.idMenu }
-						});
-						return dataMenu
-					}))
-					const dataMenu = await models.Menu.findOne({
-						where: { idMenu: val.idMenu }
-					});
-					let dataSubMenuOrderBy = _.orderBy(kumpulsub, 'menuSequence', 'asc')
-					let objectBaru = {
-						menuRoute: dataMenu.menuRoute,
-						menuText: dataMenu.menuText,
-						menuIcon: dataMenu.menuIcon,
-						menuSequence: id_role === '4' ? dataMenu.menuSequence : dataMenu.menuSequence + 1,
-						statusAktif: dataMenu.statusAktif,
-						kondisi: val.kondisi,
-						subMenu: dataSubMenuOrderBy.filter(value => value.statusAktif)
-					};
-					return objectBaru
-				}))
-				if(id_role !== '4'){
-					kumpul.push({
-						menuRoute: '/dashboard',
-						menuText: 'Dashboard',
-						menuIcon: 'mdi mdi-view-dashboard',
-						menuSequence: 1,
-						statusAktif: true,
-						kondisi: false, 
-						subMenu: []
-					})
-				}
-				let dataMenuOrderBy = _.orderBy(kumpul, 'menuSequence', 'asc')
-				let objectBaru = Object.assign(value, { menu: dataMenuOrderBy.filter(value => value.statusAktif) });
-				return objectBaru
-			}))
-
-			return OK(res, result);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsAgama (models) {
-  return async (req, res, next) => {
-    try {
-      const dataAgama = await models.Agama.findAll();
-			return OK(res, dataAgama);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsHobi (models) {
-	return async (req, res, next) => {
-	  try {
-		const dataHobi = await models.Hobi.findAll();
-			  return OK(res, dataHobi);
-	  } catch (err) {
-			  return NOT_FOUND(res, err.message)
-	  }
-	}  
-}
-
-function optionsCitaCita (models) {
-	return async (req, res, next) => {
-	  try {
-		const dataCitaCita = await models.CitaCita.findAll();
-			  return OK(res, dataCitaCita);
-	  } catch (err) {
-			  return NOT_FOUND(res, err.message)
-	  }
-	}  
-}
-
-function optionsJenjangSekolah (models) {
-  return async (req, res, next) => {
-    try {
-      const dataJenjangSekolah = await models.JenjangSekolah.findAll();
-			return OK(res, dataJenjangSekolah);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsPendidikan (models) {
-  return async (req, res, next) => {
-    try {
-      const dataPendidikan = await models.Pendidikan.findAll();
-			return OK(res, dataPendidikan);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsPekerjaan (models) {
-  return async (req, res, next) => {
-    try {
-      const dataPekerjaan = await models.Pekerjaan.findAll();
-			return OK(res, dataPekerjaan);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsPenghasilan (models) {
-  return async (req, res, next) => {
-    try {
-      const dataPenghasilan = await models.Penghasilan.findAll();
-			return OK(res, dataPenghasilan);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsJabatan (models) {
-  return async (req, res, next) => {
-    try {
-      const dataJabatan = await models.Jabatan.findAll();
-			return OK(res, dataJabatan);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsMengajar (models) {
-  return async (req, res, next) => {
-    try {
-      const dataMengajar = await models.Mengajar.findAll();
-			return OK(res, dataMengajar);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsKelas (models) {
-  return async (req, res, next) => {
-		let { kondisi, walikelas } = req.query
-    try {
-			const dataKelas = await models.Kelas.findAll({where: {status: true}});
-			if(kondisi === 'Use'){
-				let result = []
-				await Promise.all(dataKelas.map(async str => {
-					const user = await models.UserDetail.findOne({where: {waliKelas: str.dataValues.kelas}});
-					if(user){
-						if(walikelas !== user.dataValues.waliKelas){
-							result.push({ ...str.dataValues, kelas: `${str.dataValues.kelas} (sudah di gunakan)`, disabled: true })
-						}else{
-							result.push(str.dataValues)
-						}
-					}else{
-						result.push(str.dataValues)
-					}
-				}))
-				return OK(res, _.orderBy(result, 'idKelas', 'ASC'));
-			}
-
-			return OK(res, dataKelas);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsStatusOrangtua (models) {
-  return async (req, res, next) => {
-    try {
-      const dataStatusOrangtua = await models.StatusOrangtua.findAll();
-			return OK(res, dataStatusOrangtua);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsStatusTempatTinggal (models) {
-  return async (req, res, next) => {
-    try {
-      const dataStatusTempatTinggal = await models.StatusTempatTinggal.findAll();
-			return OK(res, dataStatusTempatTinggal);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsJarakRumah (models) {
-  return async (req, res, next) => {
-    try {
-      const dataJarakRumah = await models.JarakRumah.findAll();
-			return OK(res, dataJarakRumah);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsTransportasi (models) {
-  return async (req, res, next) => {
-    try {
-      const dataTransportasi = await models.Transportasi.findAll();
-			return OK(res, dataTransportasi);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsWilayah (models) {
-  return async (req, res, next) => {
-		let { bagian, KodeWilayah } = req.query
-		let jmlString = bagian == 'provinsi' ? 2 : bagian == 'kabkotaOnly' ? 5 : bagian == 'kecamatanOnly' ? 8 : bagian == 'kelurahanOnly' ? 13 : KodeWilayah.length
-		let whereChar = (jmlString==2?5:(jmlString==5?8:13))
-    let where = {}
-		try {
-			if(bagian == 'provinsi' || bagian == 'kabkotaOnly' || bagian == 'kecamatanOnly' || bagian == 'kelurahanOnly') {
-				where = sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), jmlString)
-			}else{
-				where = { 
-					[Op.and]: [
-						sequelize.where(sequelize.fn('char_length', sequelize.col('kode')), whereChar),
-						{
-							kode: {
-								[Op.like]: `${KodeWilayah}%`
-							}
-						}
-					]
-				}
-			}
-			const dataWilayah = await models.Wilayah.findAll({
-				where,
-				// attributes: [['kode', 'value'], ['nama', 'text'], 'kodePos']
-				attributes: ['kode', 'nama', 'kodePos'],
-				order: [['kode', 'ASC']]
-			});
-
-			return OK(res, dataWilayah);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsWilayah2023 (models) {
-  return async (req, res, next) => {
-		let { bagian, KodeWilayah } = req.query
-		let jmlString = bagian == 'provinsi' ? 2 : bagian == 'kabkotaOnly' ? 5 : bagian == 'kecamatanOnly' ? 8 : bagian == 'kelurahanOnly' ? 13 : KodeWilayah.length
-		let whereChar = bagian === 'kabkota' || bagian === 'kecamatan' || bagian === 'kelurahan' ? (jmlString == 2 ? 5 : (jmlString == 5 ? 8 : 13)) : jmlString
-    let where = {}
-    let attributes = ['idLocation', [sequelize.fn('LEFT', sequelize.col('kode'), whereChar), 'kode']]
-		try {
-			if(bagian === 'kabkota' || bagian === 'kecamatan' || bagian === 'kelurahan')
-			where = { 
-				kode: { [Op.like]: `${KodeWilayah}%` },
-				statusAktif: true,
-			}
-			if(bagian === 'provinsi') { attributes.push(['nama_prov', 'nama']) }
-			if(bagian === 'kabkotaOnly' || bagian === 'kabkota') { attributes.push('jenisKabKota', ['nama_kabkota', 'nama']) }
-			if(bagian === 'kecamatanOnly' || bagian === 'kecamatan') { attributes.push(['nama_kec', 'nama']) }
-			if(bagian === 'kelurahanOnly' || bagian === 'kelurahan') { attributes.push('jenisKelDes', ['nama_keldes', 'nama'], 'kodePos') }
-			const dataWilayah = await models.Wilayah2023.findAll({
-				where,
-				attributes,
-				order: [['kode', 'ASC']],
-				group: [sequelize.fn('LEFT', sequelize.col('kode'), whereChar)]
-			});
-
-			return OK(res, dataWilayah);
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function optionsBerkas (models) {
-  return async (req, res, next) => {
-		const { kategori } = req.query
-		let where = {}
-    try {
-			if(kategori === 'tautan') where = { statusAktif: true }
-      const dataBerkas = await models.Berkas.findAll({ where });
-			let extGBR = [], extFile = []
-			await Promise.all(dataBerkas.map(val => {
-				if(val.dataValues.type === 'Gambar'){
-					extGBR.push({
-						...val.dataValues,
-						file: `${BASE_URL}berkas/${val.dataValues.file}`
-					})
-				}else if(val.dataValues.type === 'File'){
-					extFile.push({
-						...val.dataValues,
-						file: `${BASE_URL}berkas/${val.dataValues.file}`
-					})
-				}
-			}))
-
-			if(extGBR.length && extFile.length){
-				// return OK(res, [{header: 'Files'}, ...extFile, {divider: true}, {header: 'Images'}, ...extGBR]);
-				return OK(res, [...extFile, ...extGBR]);
-			}else if(extGBR.length && !extFile.length){
-				// return OK(res, [{header: 'Images'}, ...extGBR]);
-				return OK(res, [...extGBR]);
-			}else if(!extGBR.length && extFile.length){
-				// return OK(res, [{header: 'Files'}, ...extFile]);
-				return OK(res, [...extFile]);
-			}
-    } catch (err) {
-			return NOT_FOUND(res, err.message)
-    }
-  }  
-}
-
-function getUserBroadcast (models) {
-	return async (req, res, next) => {
-		const { kategori, kode } = req.query
-    try {
-			const { consumerType } = req.JWTDecoded
-			const type = consumerType === 1 || consumerType === 2 || (consumerType === 3 && kode === '1') ? [3, 4] : consumerType === 3 ? 4 : 3
-			if(kategori === 'USER'){
-				const dataUser = await models.User.findAll({
-					where: {
-						consumerType: type,
-						statusAktif: true,
-					},
-					include: [
-						{ 
-							model: models.UserDetail,
-						},
-					],
-					order: [
-						[models.UserDetail, 'kelas', 'ASC'],
-						['nama', 'ASC'],
-					],
-				});
-				let pushSiswa = [], pushGuru = []
-				await Promise.all(dataUser.map(async val => {
-					const group = val.consumerType === 3 ? 'Guru' : 'Siswa-Siswi'
-					if(val.consumerType === 3){
-						pushGuru.push({
-							idUser: val.idUser,
-							consumerType: val.consumerType,
-							nama: val.nama,
-							kelas: val.UserDetail.kelas,
-							text: val.consumerType === 3 ? `${val.nama}` : `${val.nama} (${val.UserDetail.kelas})`,
-							value: val.idUser,
-							group,
-							fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
-						})
-					}
-					if(val.consumerType === 4){
-						pushSiswa.push({
-							idUser: val.idUser,
-							consumerType: val.consumerType,
-							nama: val.nama,
-							kelas: val.UserDetail.kelas,
-							text: val.consumerType === 3 ? `${val.nama}` : `${val.nama} (${val.UserDetail.kelas})`,
-							value: val.idUser,
-							group,
-							fotoProfil: val.UserDetail.fotoProfil ? `${BASE_URL}image/${val.UserDetail.fotoProfil}` : `${BASE_URL}bahan/user.png`,
-						})
-					}
-				}))
-				if(pushSiswa.length && pushGuru.length){
-					return OK(res, [{ type: 'subheader', title: 'Guru' }, {divider: true}, ...pushGuru, {divider: true}, {type: 'subheader', title: 'Siswa-Siswi'}, {divider: true}, ...pushSiswa]);
-					// return OK(res, [...pushGuru, ...pushSiswa]);
-				}else if(pushSiswa.length && !pushGuru.length){
-					return OK(res, [{type: 'subheader', title: 'Siswa-Siswi'}, {divider: true}, ...pushSiswa]);
-					// return OK(res, [...pushSiswa]);
-				}else if(!pushSiswa.length && pushGuru.length){
-					return OK(res, [{type: 'subheader', title: 'Guru'}, {divider: true}, ...pushGuru]);
-					// return OK(res, [...pushGuru]);
-				}
-			}else if(kategori === 'KELAS'){
-				const dataKelas = await models.Kelas.findAll({
-					where: {
-						status: true
-					},
-				});
-
-				const dataUser = await Promise.all(dataKelas.map(async val => {
-					const user = await models.User.findAll({
-						where: {
-							consumerType: 4,
-							statusAktif: true,
-						},
-						include: [
-							{ 
-								where: {
-									kelas: val.kelas,
-								},
-								model: models.UserDetail,
-							},
-						],
-						order: [
-							['nama', 'ASC'],
-						],
-					});
-					const result = []
-					await Promise.all(user.map(async val => {
-						result.push(val.idUser)
-						return result
-					}))
-					return {
-						text: val.kelas,
-						value: val.kelas,
-						listUser: result,
-					}
-				}))
-				return OK(res, dataUser);
-			}
-	  } catch (err) {
-			return NOT_FOUND(res, err.message)
-	  }
-	}  
 }
 
 function getListExam (models) {
@@ -1426,6 +1083,232 @@ function getListExam (models) {
 			return NOT_FOUND(res, err.message)
     }
   }  
+}
+
+function getNotifikasi (models) {
+	return async (req, res, next) => {
+	  let { page = 1, limit = 5, kategori, untuk } = req.query
+		let whereUntuk = {}
+    try {
+			const { userID } = req.JWTDecoded
+			if(untuk === 'pengirim'){
+				whereUntuk.createBy = userID
+			}else{
+				whereUntuk.idUser = userID
+			}
+			const type = kategori === '1' ? ['Record', 'Report', 'Broadcast'] : kategori === '2' ? ['Record'] : kategori === '4' ? ['Broadcast'] : ['Report']
+			const offset = limit * (page - 1)
+			const { count, rows: datanotifikasi } = await models.Notifikasi.findAndCountAll({
+				where: { ...whereUntuk, type: type },
+				order: [['createdAt','DESC']],
+				limit: parseInt(limit, 10),
+				offset,
+				raw: true
+			});
+
+			const records = await Promise.all(datanotifikasi.map(async val => {
+				const dataBerkas = await models.Berkas.findAll({ where: { idBerkas: JSON.parse(val.tautan), statusAktif: true }, raw: true })
+				const dataUser = await models.User.findOne({ where: { idUser: val.idUser } })
+				let pesan = JSON.parse(val.pesan)
+				return {
+					...val,
+					pesan: {
+						message: pesan.message,
+						payload: JSON.stringify(pesan.payload),
+					},
+					params: JSON.parse(val.params),
+					tautan: await dataBerkas.map(k => {
+						return {
+							...k,
+							file: `${BASE_URL}berkas/${k.file}`
+						}
+					}),
+					tujuan: dataUser.nama,
+					createdAt: convertDateTime(val.createdAt),
+				}
+			}))
+
+			const arrangeResponse = () => {
+				const totalPage = Math.ceil(count / limit)
+				const hasNext = totalPage > parseInt(page, 10)
+				const pageSummary = { limit: Number(limit), page: Number(page), hasNext, lastID: '', total: count, totalPage }
+
+				if(count > 0){
+					pageSummary.lastID = datanotifikasi[datanotifikasi.length - 1].idNotifikasi
+					return { records, pageSummary }
+				}
+				return { records: [], pageSummary }
+			}
+
+			return OK(res, arrangeResponse());
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
+function crudNotifikasi (models) {
+	return async (req, res, next) => {
+	  let body = req.body
+    try {
+			const { userID } = req.JWTDecoded
+			if(body.jenis === 'ISREAD'){
+				await models.Notifikasi.update({ isRead: 1 }, { where: { idNotifikasi: body.idNotifikasi } })
+			}else if(body.jenis === 'ISREADALL'){
+				const type = body.kategori === '1' ? ['Record', 'Report'] : body.kategori === '2' ? ['Record'] : body.kategori === '4' ? ['Broadcast'] : ['Report']
+				const datanotifikasi = await models.Notifikasi.findAll({
+					where: { idUser: userID, type: type, isRead: 0 },
+					attributes: ["idNotifikasi", "type"],
+					raw: true
+				});
+				await Promise.all(datanotifikasi.map(async val => {
+					await models.Notifikasi.update({ isRead: 1 }, { where: { idNotifikasi: val.idNotifikasi } })
+				}))
+			}else if(body.jenis === 'CREATE'){
+				let payload = {
+					idNotifikasi: await createKSUID(),
+					idUser: body.idUser,
+					type: body.type,
+					judul: body.judul,
+					pesan: JSON.stringify(body.pesan),
+					params: body.params !== null ? JSON.stringify(body.params) : null,
+					dikirim: body.dikirim,
+					createBy: body.createBy,
+				}
+				await models.Notifikasi.create(payload)
+			}else if(body.jenis === 'BROADCAST'){
+				let payload = []
+				await Promise.all(body.idUser.map(async idUser => {
+					payload.push({
+						idNotifikasi: await createKSUID(),
+						idUser: idUser,
+						type: body.type,
+						judul: body.judul,
+						pesan: JSON.stringify(body.pesan),
+						params: body.params !== null ? JSON.stringify(body.params) : null,
+						dikirim: body.dikirim,
+						tautan: JSON.stringify(body.tautan),
+						createBy: body.createBy,
+				})
+				}))
+				// console.log(payload);
+				await models.Notifikasi.bulkCreate(payload)
+			}else if(body.jenis === 'DELETEBROADCAST'){
+				await models.Notifikasi.destroy({ where: { idNotifikasi: body.idNotifikasi } })
+			}
+			return OK(res)
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
+function getKategoriNotifikasi (models) {
+	return async (req, res, next) => {
+    try {
+			const { userID } = req.JWTDecoded
+			const datakategori = await models.Notifikasi.findAll({
+				where: { idUser: userID, isRead: false },
+				order: [['createdAt','DESC']],
+			});
+
+			const result = datakategori.reduce((memo, notifikasi) => {
+				const tmp = memo
+				const { type } = notifikasi
+				if(type === 'Record') tmp.record += 1
+				if(type === 'Report') tmp.report += 1
+				// if(type === 'Broadcast') tmp.broadcast += 1
+				tmp.all += 1
+				return tmp
+			}, {
+				all: 0,
+				record: 0,
+				report: 0,
+				// broadcast: 0,
+			})
+
+			const response = [
+				{
+					kode: '1',
+					text: 'All Notification',
+					count: result.all,
+				},
+				{
+					kode: '2',
+					text: 'Record',
+					count: result.record,
+				},
+				{
+					kode: '3',
+					text: 'Report',
+					count: result.report,
+				},
+				// {
+				// 	kode: '4',
+				// 	text: 'Broadcast',
+				// 	count: result.broadcast,
+				// },
+			]
+
+			return OK(res, response);
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
+}
+
+function getCountNotifikasi (models) {
+	return async (req, res, next) => {
+    try {
+			const { userID } = req.JWTDecoded
+			const datakategori = await models.Notifikasi.findAll({
+				where: { idUser: userID, isRead: false },
+				order: [['createdAt','DESC']],
+			});
+
+			const result = datakategori.reduce((memo, notifikasi) => {
+				const tmp = memo
+				const { type } = notifikasi
+				if(type === 'Record') tmp.record += 1
+				if(type === 'Report') tmp.report += 1
+				if(type === 'Broadcast') tmp.broadcast += 1
+				tmp.all += 1
+				return tmp
+			}, {
+				all: 0,
+				record: 0,
+				report: 0,
+				broadcast: 0,
+			})
+
+			const response = [
+				{
+					kode: '1',
+					text: 'All Notification',
+					count: result.all,
+				},
+				{
+					kode: '2',
+					text: 'Record',
+					count: result.record,
+				},
+				{
+					kode: '3',
+					text: 'Report',
+					count: result.report,
+				},
+				{
+					kode: '4',
+					text: 'Broadcast',
+					count: result.broadcast,
+				},
+			]
+
+			return OK(res, response);
+	  } catch (err) {
+			return NOT_FOUND(res, err.message)
+	  }
+	}  
 }
 
 function getRFID (models) {
@@ -1918,44 +1801,32 @@ module.exports = {
   getUID,
   getEncrypt,
   getDecrypt,
-  getMenu,
-  crudMenu,
-  getSequenceMenu,
-  crudSequenceMenu,
-  getRole,
-  crudRole,
-  getRoleMenu,
-  crudRoleMenu,
-  getKategoriNotifikasi,
-  getNotifikasi,
-  getCountNotifikasi,
-  crudNotifikasi,
+  optionsMenu,
+  optionsDataMaster,
+  optionsWilayah,
+  optionsWilayah2023,
+  optionsBerkas,
+  optionsUserBroadcast,
+  optionsKelas,
   getCMSSetting,
   crudCMSSetting,
   getBerkas,
   crudBerkas,
+  getRole,
+  crudRole,
+  getMenu,
+  crudMenu,
+  getSequenceMenu,
+  crudSequenceMenu,
+  getRoleMenu,
+  crudRoleMenu,
   getCardRFID,
   crudCardRFID,
-  optionsMenu,
-  optionsAgama,
-  optionsHobi,
-  optionsCitaCita,
-  optionsJenjangSekolah,
-  optionsPendidikan,
-  optionsPekerjaan,
-  optionsPenghasilan,
-  optionsJabatan,
-  optionsMengajar,
-  optionsKelas,
-  optionsStatusOrangtua,
-  optionsStatusTempatTinggal,
-  optionsJarakRumah,
-  optionsTransportasi,
-  optionsWilayah,
-  optionsWilayah2023,
-  optionsBerkas,
-  getUserBroadcast,
   getListExam,
+  getNotifikasi,
+  crudNotifikasi,
+  getKategoriNotifikasi,
+  getCountNotifikasi,
   getRFID,
   getWilayah,
   crudWilayah,
